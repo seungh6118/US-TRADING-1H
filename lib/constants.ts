@@ -1,10 +1,10 @@
-﻿import { UniverseDefinition } from "@/lib/types";
+import { UniverseDefinition } from "@/lib/types";
 
 export const universeDefinitions: UniverseDefinition[] = [
   {
     key: "sp500",
-    label: "S&P500 Leaders",
-    description: "Broad quality leadership basket used as the default research universe.",
+    label: "S&P500 리더",
+    description: "기본 감시 유니버스로 쓰기 좋은 대형 리더 종목 묶음입니다.",
     tickers: [
       "NVDA",
       "MSFT",
@@ -30,8 +30,8 @@ export const universeDefinitions: UniverseDefinition[] = [
   },
   {
     key: "nasdaq100",
-    label: "Nasdaq100 Growth",
-    description: "Growth-heavy basket to isolate momentum leadership.",
+    label: "나스닥100 중심",
+    description: "성장주 중심으로 모멘텀 리더를 확인하기 좋은 유니버스입니다.",
     tickers: [
       "NVDA",
       "MSFT",
@@ -50,26 +50,26 @@ export const universeDefinitions: UniverseDefinition[] = [
   },
   {
     key: "magnificent7",
-    label: "Magnificent 7",
-    description: "Mega-cap leadership proxy.",
+    label: "매그니피센트 7",
+    description: "메가캡 리더를 빠르게 체크하기 위한 묶음입니다.",
     tickers: ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
   },
   {
     key: "semiconductors",
-    label: "Semiconductors",
-    description: "AI compute and semiconductor infrastructure focus.",
+    label: "반도체",
+    description: "AI 가속기와 반도체 인프라 중심 유니버스입니다.",
     tickers: ["NVDA", "AMD", "AVGO", "SMCI"]
   },
   {
     key: "defense",
-    label: "Defense",
-    description: "Defense and security equities.",
+    label: "방산",
+    description: "방산 및 안보 관련 종목 묶음입니다.",
     tickers: ["RTX", "LMT", "PLTR"]
   },
   {
     key: "custom",
-    label: "Custom",
-    description: "User-defined tickers from the UI or environment variables.",
+    label: "사용자 지정",
+    description: "직접 입력한 티커 리스트를 사용합니다.",
     tickers: []
   }
 ];

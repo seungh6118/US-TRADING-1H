@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   Bar,
@@ -15,7 +15,7 @@ import { formatCompactNumber } from "@/lib/utils";
 
 export function PriceChart({ history }: { history: PricePoint[] }) {
   const data = history.slice(-90).map((point) => ({
-    date: new Date(point.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    date: new Date(point.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
     close: Number(point.close.toFixed(2)),
     volume: Math.round(point.volume / 1_000_000)
   }));
@@ -36,9 +36,9 @@ export function PriceChart({ history }: { history: PricePoint[] }) {
             }}
             formatter={(value, name) => {
               if (name === "volume") {
-                return [`${formatCompactNumber(Number(value) * 1_000_000)}`, "Volume"];
+                return [`${formatCompactNumber(Number(value) * 1_000_000)}`, "거래량"];
               }
-              return [`$${value}`, "Close"];
+              return [`$${value}`, "종가"];
             }}
           />
           <Bar yAxisId="volume" dataKey="volume" fill="rgba(255,255,255,0.12)" radius={[4, 4, 0, 0]} barSize={8} />

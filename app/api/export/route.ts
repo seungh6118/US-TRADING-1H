@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDashboardData } from "@/services/research-service";
 
 export async function GET(_request: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(_request: NextRequest) {
     "Content-Disposition": 'attachment; filename="watchlist-snapshot.csv"'
   });
   const rows = [
-    ["date", "ticker", "score", "label", "reason", "key_level", "invalidation", "next_checkpoint"].join(","),
+    ["날짜", "티커", "점수", "라벨", "관심 이유", "핵심 가격", "무효화 조건", "다음 체크포인트"].join(","),
     ...data.watchlist.items.map((item) =>
       [
         item.date,

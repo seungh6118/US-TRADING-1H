@@ -1,4 +1,4 @@
-﻿import {
+import {
   EconomicEvent,
   InstrumentSnapshot,
   NewsItem,
@@ -8,6 +8,7 @@
   StockSnapshot,
   ThemeSnapshot
 } from "@/lib/types";
+import { displayTheme, getLocalizedStockDescription, getLocalizedStockEventNote } from "@/lib/localization";
 import { average, getDateOffset, movingAverage, pseudoRandom } from "@/lib/utils";
 
 type SetupProfile = "breakout" | "pullback" | "watch" | "earnings" | "avoid";
@@ -755,6 +756,37 @@ const marketNewsFixtures: NewsItem[] = [
   }
 ];
 
+const localizedThemeSummaryMap: Record<string, string> = {
+  AI: "AI ?????輿????????????ル뒌?? ????????轅붽틓???壤굿?怨몃츕??????얠뺏??븍툙???????????袁ⓦ걤???ш낄猷????????筌?캉??",
+  Semiconductor: "?????밸븶筌믩끃??????????거딉㎗????????얠뺏??븍툙???????????쇰뮡???????關?쒎첎?嫄??ル?????????????? 2?????????욱떌???????レ졁?? ?????ル뒌?????????ル뒌???????몃뱥???? ?????????????곸죩.",
+  "Power Infrastructure": "?????獄쏅챶留???????????곗뵯鸚?????????????????勇???????獄쏅챶留???????곕츥?嶺뚮?爰?????????源낆┰??????ル뒌?? ??????????傭?끆????????????밸븶??????欲꼲?????????????????곸죩.",
+  Cloud: "??????????袁④뎬?????????癲??됀??AI ?????곌떽釉붾???? ???????????????猷몄굣???⑥レ몷??????????????????????곸죩.",
+  Cybersecurity: "?????곕츥????????????????汝뷴젆?琉껆?????????????????뉙뀭?欲꼲????⑥る뜪????????猿딅????????꾨굴???饔낅떽????????????얠뺏??븍툙?????耀붾굝??????耀붾굝?????????嚥▲굧?????????????????곸죩.",
+  Defense: "????μ떜媛?걫?????????살몝????モ섓㎗????繹먮끍?????耀붾굝??????????轅붽틓???壤굿?怨몃츕??????????ル뒌???????雅?굛肄???轅붽틓???袁⑥Ŀ?????????????獄쏅챶留??????????곸죩.",
+  Nuclear: "?????獄쏅챶留???????堉온?????????源낆┰??????ル뒌?? ???????????怨멸텛??????????????る옖????????살몝?轅붽틓??筌뚮랭沅?????????????????????곸죩.",
+  "Obesity Treatment": "??????椰????? ?????ル뒌??嶺?筌????????????ル뒌????汝뷴젆?琉?嶺뚮　維뽪쾮? ?????獄쏅챶留??癰귙룗猷?????????? ????????????筌?캉??",
+  Robotics: "?????????????源낆쭍????????????ル뒌??????饔낅떽?????????? ?????獄쏅챶留??癰귙룗猷??????堉온?????⑥ル??????븐뼐????????????곸죩."
+};
+
+const localizedMarketNewsMap: Record<string, { title: string; summary: string }> = {
+  "market-1": {
+    title: "AI infrastructure bid stays firm after hyperscaler capex comments",
+    summary: "Cloud capex guidance stayed firm and kept semiconductors plus power infrastructure supported."
+  },
+  "market-2": {
+    title: "Upcoming CPI and FOMC minutes raise chase risk",
+    summary: "Macro events are not outright bearish, but they do argue for tighter position sizing."
+  },
+  "market-3": {
+    title: "Enterprise checks still support security software demand",
+    summary: "Checks suggest the main consolidation winners continue to take share."
+  },
+  "market-4": {
+    title: "Power scarcity narrative broadens into the data-center supply chain",
+    summary: "Equipment and generation demand remain stronger than previous expectations."
+  }
+};
+
 const patterns: Record<SetupProfile, number[]> = {
   breakout: [0.88, 0.88, 0.89, 0.89, 0.9, 0.9, 0.91, 0.92, 0.92, 0.93, 0.93, 0.94, 0.95, 0.95, 0.96, 0.96, 0.97, 0.97, 0.98, 0.98, 0.99, 0.99, 0.985, 0.99, 0.995, 0.99, 0.996, 0.998, 0.999, 1],
   pullback: [1.02, 1.02, 1.01, 1.01, 0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.935, 0.94, 0.945, 0.95, 0.955, 0.96, 0.965, 0.97, 0.975, 0.98, 0.982, 0.985, 0.988, 0.99, 0.992, 0.994, 0.996, 0.998, 1],
@@ -800,52 +832,57 @@ function generatePriceHistory(seed: StockSeed): PricePoint[] {
 }
 
 function buildStockNews(seed: StockSeed): NewsItem[] {
-  const toneWord = seed.newsTone > 0.6 ? "supports" : seed.newsTone < 0 ? "pressures" : "keeps focus on";
+  const localizedDescription = getLocalizedStockDescription(seed.ticker, seed.description);
+  const localizedEventNote = getLocalizedStockEventNote(seed.ticker, seed.eventNote);
+  const themeLabel = displayTheme(seed.themes[0]);
+  const toneText = seed.newsTone > 0.6 ? "supports the setup" : seed.newsTone < 0 ? "raises risk" : "keeps focus on the setup";
+
   return [
     {
       id: `${seed.ticker}-news-1`,
-      title: `${seed.companyName} setup ${toneWord} ${seed.themes[0]} trade`,
+      title: `${seed.companyName} ${toneText}`,
       source: "ResearchFlow",
       publishedAt: getDateOffset(-1),
       sentimentScore: seed.newsTone,
       importanceScore: 0.74,
       tickers: [seed.ticker],
       sector: seed.sector,
-      summary: `${seed.companyName} remains connected to ${seed.themes.join(" and ")} leadership. ${seed.eventNote}`
+      summary: `${themeLabel} leadership remains relevant for ${seed.companyName}. ${localizedEventNote}`
     },
     {
       id: `${seed.ticker}-news-2`,
-      title: `${seed.companyName} latest checks keep investors focused on next catalyst`,
+      title: `${seed.companyName} investors watch the next catalyst`,
       source: "StreetPulse",
       publishedAt: getDateOffset(-3),
       sentimentScore: seed.newsTone * 0.8,
       importanceScore: 0.61,
       tickers: [seed.ticker],
       sector: seed.sector,
-      summary: `${seed.description} ${seed.eventNote}`
+      summary: `${localizedDescription} ${localizedEventNote}`
     }
   ];
 }
-
 function buildEvents(seed: StockSeed): StockEvent[] {
+  const localizedEventNote = getLocalizedStockEventNote(seed.ticker, seed.eventNote);
+  const themeLabel = displayTheme(seed.themes[0]);
+
   return [
     {
       id: `${seed.ticker}-earnings`,
       title: "Quarterly earnings",
       date: getDateOffset(seed.nextEarningsOffsetDays),
       category: "earnings",
-      note: seed.eventNote
+      note: localizedEventNote
     },
     {
       id: `${seed.ticker}-check`,
-      title: `${seed.themes[0]} checkpoint`,
+      title: `${themeLabel} checkpoint`,
       date: getDateOffset(seed.nextEarningsOffsetDays - 6),
       category: seed.themes[0] === "Defense" ? "regulatory" : "product",
-      note: `Watch whether ${seed.themes[0]} interest translates into price confirmation.`
+      note: `${themeLabel} interest still needs price confirmation.`
     }
   ];
 }
-
 function buildSnapshot(seed: StockSeed): StockSnapshot {
   const priceHistory = generatePriceHistory(seed);
   const closes = priceHistory.map((point) => point.close);
@@ -866,7 +903,7 @@ function buildSnapshot(seed: StockSeed): StockSnapshot {
       sector: seed.sector,
       industry: seed.industry,
       themes: seed.themes,
-      description: seed.description
+      description: getLocalizedStockDescription(seed.ticker, seed.description)
     },
     quote: {
       ticker: seed.ticker,
@@ -903,7 +940,7 @@ function buildSnapshot(seed: StockSeed): StockSnapshot {
       epsSurprisePct: seed.epsSurprisePct,
       guidance: seed.guidance,
       epsRevisionScore: seed.epsRevisionScore,
-      summary: `${seed.guidance === "raised" ? "Raised" : seed.guidance === "cut" ? "Cut" : "Held"} guidance after ${seed.epsSurprisePct.toFixed(1)}% EPS surprise.`
+      summary: `${seed.guidance === "raised" ? "Raised guidance" : seed.guidance === "cut" ? "Cut guidance" : "Held guidance"} after a ${seed.epsSurprisePct.toFixed(1)}% EPS surprise.`
     },
     priceHistory,
     recentNews: buildStockNews(seed),
@@ -929,11 +966,18 @@ export function getMockSectorPerformance(): SectorPerformance[] {
 }
 
 export function getMockThemeSnapshots(): ThemeSnapshot[] {
-  return themeFixtures;
+  return themeFixtures.map((theme) => ({
+    ...theme,
+    summary: localizedThemeSummaryMap[theme.name] ?? theme.summary
+  }));
 }
 
 export function getMockMarketNews(): NewsItem[] {
-  return marketNewsFixtures;
+  return marketNewsFixtures.map((item) => ({
+    ...item,
+    title: localizedMarketNewsMap[item.id]?.title ?? item.title,
+    summary: localizedMarketNewsMap[item.id]?.summary ?? item.summary
+  }));
 }
 
 export function getMockEconomicEvents(): EconomicEvent[] {
@@ -943,7 +987,7 @@ export function getMockEconomicEvents(): EconomicEvent[] {
       title: "US CPI",
       date: getDateOffset(1),
       impact: "high",
-      note: "Growth leadership can wobble on hot inflation prints."
+      note: "A hot inflation print can shake higher-beta leadership names."
     },
     {
       id: "event-fomc",
@@ -957,11 +1001,10 @@ export function getMockEconomicEvents(): EconomicEvent[] {
       title: "Nonfarm Payrolls",
       date: getDateOffset(5),
       impact: "medium",
-      note: "Labor surprise can influence yields and dollar direction."
+      note: "Labor surprises can influence yields and dollar direction."
     }
   ];
 }
-
 export function getMockMacroSnapshot(): Omit<{ asOf: string; regime: "risk-on"; indices: InstrumentSnapshot[]; macroAssets: InstrumentSnapshot[]; economicEvents: EconomicEvent[] }, never> {
   return {
     asOf: new Date().toISOString(),

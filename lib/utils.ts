@@ -1,4 +1,4 @@
-﻿import { appConfig } from "@/lib/config";
+import { appConfig } from "@/lib/config";
 
 export function clamp(value: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, value));
@@ -25,17 +25,17 @@ export function formatPercent(value: number, digits = 1): string {
 }
 
 export function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("ko-KR", {
     timeZone: appConfig.timezone,
-    month: "short",
+    month: "long",
     day: "numeric"
   }).format(new Date(value));
 }
 
 export function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("ko-KR", {
     timeZone: appConfig.timezone,
-    month: "short",
+    month: "long",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit"

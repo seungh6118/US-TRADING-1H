@@ -1,4 +1,5 @@
-﻿import { riskWindows, scoreWeights } from "@/lib/config";
+import { riskWindows, scoreWeights } from "@/lib/config";
+import { displaySector, displayThemes } from "@/lib/localization";
 import {
   CandidateLabel,
   CandidateStock,
@@ -206,44 +207,47 @@ function buildKeyLevels(stock: StockSnapshot) {
 }
 
 function buildNarrative(stock: StockSnapshot, score: ScoreBreakdown, label: CandidateLabel) {
-  const sector = getSectorScore(stock, []);
-  const whyWatch = [
-    `${stock.profile.sector} is one of the stronger groups for this market regime.`,
-    `Price structure score is ${score.priceStructure.toFixed(0)}, keeping ${stock.profile.ticker} on the shortlist.`,
-    `${stock.profile.themes.join(" / ")} exposure aligns with the current tape.`
-  ];
-
-  const whyNotYet = [
-    score.riskPenalty >= 9 ? `Event risk is elevated ahead of ${daysUntil(stock.earnings.nextEarningsDate)}-day earnings.` : `The setup still needs cleaner follow-through through the trigger zone.`,
-    stock.technicals.volumeRatio < 1.1 ? "Volume confirmation is not decisive yet." : "Recent activity is constructive, but not enough to ignore invalidation.",
-    label === "Avoid" ? "Relative trend is too fragile for a fresh swing setup." : `Risk penalty of ${score.riskPenalty.toFixed(1)} means timing matters.`
-  ];
-
   const keyLevels = buildKeyLevels(stock);
+  const earningsDays = daysUntil(stock.earnings.nextEarningsDate);
+
   return {
-    whyWatch,
-    whyNotYet,
+    whyWatch: [
+      `${displaySector(stock.profile.sector)} 섹터 강도가 현재 시장에서 상위권입니다.`,
+      `가격 구조 점수 ${score.priceStructure.toFixed(0)}점으로 ${stock.profile.ticker}는 이번 주 우선 감시 후보에 들어갑니다.`,
+      `${displayThemes(stock.profile.themes)} 테마가 최근 뉴스 흐름과 가격 반응에서 동시에 우위입니다.`
+    ],
+    whyNotYet: [
+      score.riskPenalty >= 9
+        ? `실적 발표가 ${earningsDays}일 남아 있어 이벤트 변동성 리스크가 큽니다.`
+        : "추세는 살아 있지만 바로 추격하기보다 지지 구간 확인이 더 필요합니다.",
+      stock.technicals.volumeRatio < 1.1
+        ? "돌파를 정당화할 거래량 확증이 아직 충분하지 않습니다."
+        : "최근 반등은 긍정적이지만 손절 기준 없이 따라붙기에는 이격이 남아 있습니다.",
+      label === "Avoid"
+        ? "지금은 기대수익보다 리스크가 더 커 보여 관찰만 하는 편이 낫습니다."
+        : `리스크 패널티가 ${score.riskPenalty.toFixed(1)}점이라 진입 전 가격대 관리가 필요합니다.`
+    ],
     confirmation: [
-      `Hold above ${keyLevels.support.toFixed(2)} while sector strength stays firm.`,
-      `Break ${keyLevels.breakout.toFixed(2)} on expanding volume.`,
-      `See follow-through from the next catalyst rather than a one-day spike.`
+      `${keyLevels.support.toFixed(2)} 부근 지지가 유지되는지 확인합니다.`,
+      `${keyLevels.breakout.toFixed(2)} 돌파가 거래량 동반으로 나오는지 봅니다.`,
+      "다음 체크에서 상대강도와 20일 추세가 유지되는지 확인합니다."
     ],
     invalidation: [
-      `Loss of ${keyLevels.invalidation.toFixed(2)} would damage the swing thesis.`,
-      `A new wave of negative revisions would reduce the news/earnings score.`,
-      `Macro tone rolling from risk-on to neutral would lower conviction.`
+      `${keyLevels.invalidation.toFixed(2)} 이탈 시 스윙 시나리오가 약해집니다.`,
+      "실적이나 가이던스 톤이 다시 둔화되면 점수 개선이 무효화됩니다.",
+      "시장 레짐이 리스크 온에서 중립 이하로 꺾이면 우선순위를 낮춰야 합니다."
     ],
     bullishFactors: [
-      `${stock.profile.themes.join(" and ")} remain investable themes.`,
-      `20/50/200 trend alignment is ${stock.technicals.ma20 > stock.technicals.ma50 && stock.technicals.ma50 > stock.technicals.ma200 ? "healthy" : "mixed but improving"}.`
+      `${displayThemes(stock.profile.themes)} 관련 자금 흐름이 현재 시장에서 유리합니다.`,
+      `20/50/200 이동평균 배열은 ${stock.technicals.ma20 > stock.technicals.ma50 && stock.technicals.ma50 > stock.technicals.ma200 ? "정배열로 유지되고" : "아직 완전한 정배열은 아니지만 개선 중이고"} 있습니다.`
     ],
     bearishFactors: [
-      `Risk penalty sits at ${score.riskPenalty.toFixed(1)}.`,
-      `${stock.technicals.distanceFromHighPct.toFixed(1)}% distance from the 52-week high can still widen if the tape weakens.`
+      `리스크 패널티가 ${score.riskPenalty.toFixed(1)}점으로 단기 이벤트 관리가 필요합니다.`,
+      `52주 고점 대비 ${stock.technicals.distanceFromHighPct.toFixed(1)}% 아래에 있어 아직 확인 구간이 남아 있습니다.`
     ],
     whatToWatchNext: [
-      `Watch ${keyLevels.breakout.toFixed(2)} as the next acceptance level.`,
-      `Watch volume ratio around ${stock.technicals.volumeRatio.toFixed(2)} for confirmation.`
+      `${keyLevels.breakout.toFixed(2)} 부근이 다음 유효 트리거입니다.`,
+      `거래량 배수 ${stock.technicals.volumeRatio.toFixed(2)}x가 유지되는지 확인합니다.`
     ]
   } satisfies StockNarrative;
 }
@@ -290,7 +294,7 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
     if (event.impact === "high") {
       alerts.push({
         id: event.id,
-        title: `${event.title} in focus`,
+        title: `${event.title} 경계`,
         reason: event.note,
         severity: "medium",
         category: "macro"
@@ -304,8 +308,8 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
       alerts.push({
         id: `${candidate.profile.ticker}-earnings-alert`,
         ticker: candidate.profile.ticker,
-        title: `${candidate.profile.ticker} earnings nearby`,
-        reason: `Catalyst risk arrives in ${earningsDays} day(s).`,
+        title: `${candidate.profile.ticker} 실적 임박`,
+        reason: `${earningsDays}일 안에 실적 발표가 있어 이벤트 변동성이 커질 수 있습니다.`,
         severity: earningsDays <= 3 ? "high" : "medium",
         category: "earnings"
       });
@@ -314,8 +318,8 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
       alerts.push({
         id: `${candidate.profile.ticker}-vol-alert`,
         ticker: candidate.profile.ticker,
-        title: `${candidate.profile.ticker} volatility elevated`,
-        reason: `ATR-based volatility is ${candidate.technicals.atrPct.toFixed(1)}%.`,
+        title: `${candidate.profile.ticker} 변동성 과열`,
+        reason: `ATR 기준 변동성이 ${candidate.technicals.atrPct.toFixed(1)}%로 높습니다.`,
         severity: "medium",
         category: "volatility"
       });
@@ -324,8 +328,8 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
       alerts.push({
         id: `${candidate.profile.ticker}-chase-alert`,
         ticker: candidate.profile.ticker,
-        title: `${candidate.profile.ticker} chase risk`,
-        reason: `20-day move of ${candidate.quote.change20dPct.toFixed(1)}% raises pullback risk.`,
+        title: `${candidate.profile.ticker} 추격 매수 경계`,
+        reason: `최근 20일 상승률이 ${candidate.quote.change20dPct.toFixed(1)}%라 이격 부담이 있습니다.`,
         severity: "medium",
         category: "overextended"
       });
@@ -334,8 +338,8 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
       alerts.push({
         id: `${candidate.profile.ticker}-headline-alert`,
         ticker: candidate.profile.ticker,
-        title: `${candidate.profile.ticker} headline risk`,
-        reason: `Recent news flow is net negative and deserves caution.`,
+        title: `${candidate.profile.ticker} 악재 헤드라인`,
+        reason: "최근 뉴스 흐름에 부정적 요소가 있어 비중 조절이 필요합니다.",
         severity: "high",
         category: "headline"
       });

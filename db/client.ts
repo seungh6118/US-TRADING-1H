@@ -27,9 +27,9 @@ function resolveDbPath(): string {
 function seedState(): DbState {
   return {
     savedWatchlist: [
-      { ticker: "NVDA", note: "AI leader", createdAt: new Date().toISOString() },
-      { ticker: "VRT", note: "Power chain", createdAt: new Date().toISOString() },
-      { ticker: "PANW", note: "Cyber reset", createdAt: new Date().toISOString() }
+      { ticker: "NVDA", note: "AI 리더", createdAt: new Date().toISOString() },
+      { ticker: "VRT", note: "전력 체인", createdAt: new Date().toISOString() },
+      { ticker: "PANW", note: "사이버보안 리셋", createdAt: new Date().toISOString() }
     ],
     snapshots: []
   };

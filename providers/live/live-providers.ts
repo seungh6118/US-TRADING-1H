@@ -1,4 +1,4 @@
-﻿import {
+import {
   AIProvider,
   CalendarProvider,
   CandidateStock,
@@ -85,14 +85,14 @@ function deriveTechnicals(history: StockSnapshot["priceHistory"]) {
 function mapNews(ticker: string, sector: string, news: FmpNews[]) {
   return news.slice(0, 3).map((item, index) => ({
     id: `${ticker}-live-news-${index}`,
-    title: item.title ?? `${ticker} recent headline`,
+    title: item.title ?? `${ticker} 최근 헤드라인`,
     source: item.site ?? "FMP",
     publishedAt: item.publishedDate ?? new Date().toISOString(),
     sentimentScore: 0.15,
     importanceScore: 0.55,
     tickers: [ticker],
     sector,
-    summary: item.text ?? `${ticker} headline imported from live provider.`
+    summary: item.text ?? `${ticker} 관련 뉴스가 실시간 공급자에서 반영되었습니다.`
   }));
 }
 
@@ -119,12 +119,12 @@ export class LiveMarketDataProvider implements MarketDataProvider {
           { symbol: "IWM", name: "Russell 2000", value: map.get("IWM")?.price ?? 0, change1dPct: map.get("IWM")?.changesPercentage ?? 0, change5dPct: 0.6, trend: "flat" as const }
         ],
         macroAssets: [
-          { symbol: "VIXY", name: "VIX proxy", value: map.get("VIXY")?.price ?? 0, change1dPct: map.get("VIXY")?.changesPercentage ?? 0, change5dPct: -3.2, trend: "down" as const },
-          { symbol: "SHY", name: "UST 2Y proxy", value: map.get("SHY")?.price ?? 0, change1dPct: map.get("SHY")?.changesPercentage ?? 0, change5dPct: 0.4, trend: "flat" as const },
-          { symbol: "IEF", name: "UST 10Y proxy", value: map.get("IEF")?.price ?? 0, change1dPct: map.get("IEF")?.changesPercentage ?? 0, change5dPct: 0.7, trend: "flat" as const },
-          { symbol: "UUP", name: "DXY proxy", value: map.get("UUP")?.price ?? 0, change1dPct: map.get("UUP")?.changesPercentage ?? 0, change5dPct: -0.5, trend: "down" as const },
-          { symbol: "USO", name: "WTI proxy", value: map.get("USO")?.price ?? 0, change1dPct: map.get("USO")?.changesPercentage ?? 0, change5dPct: 1.1, trend: "up" as const },
-          { symbol: "GLD", name: "Gold proxy", value: map.get("GLD")?.price ?? 0, change1dPct: map.get("GLD")?.changesPercentage ?? 0, change5dPct: 0.9, trend: "up" as const }
+          { symbol: "VIXY", name: "VIX 프록시", value: map.get("VIXY")?.price ?? 0, change1dPct: map.get("VIXY")?.changesPercentage ?? 0, change5dPct: -3.2, trend: "down" as const },
+          { symbol: "SHY", name: "미국채 2년물 프록시", value: map.get("SHY")?.price ?? 0, change1dPct: map.get("SHY")?.changesPercentage ?? 0, change5dPct: 0.4, trend: "flat" as const },
+          { symbol: "IEF", name: "미국채 10년물 프록시", value: map.get("IEF")?.price ?? 0, change1dPct: map.get("IEF")?.changesPercentage ?? 0, change5dPct: 0.7, trend: "flat" as const },
+          { symbol: "UUP", name: "달러 인덱스 프록시", value: map.get("UUP")?.price ?? 0, change1dPct: map.get("UUP")?.changesPercentage ?? 0, change5dPct: -0.5, trend: "down" as const },
+          { symbol: "USO", name: "WTI 프록시", value: map.get("USO")?.price ?? 0, change1dPct: map.get("USO")?.changesPercentage ?? 0, change5dPct: 1.1, trend: "up" as const },
+          { symbol: "GLD", name: "금 프록시", value: map.get("GLD")?.price ?? 0, change1dPct: map.get("GLD")?.changesPercentage ?? 0, change5dPct: 0.9, trend: "up" as const }
         ],
         economicEvents: await new MockCalendarProvider().getEconomicEvents()
       };
@@ -244,14 +244,14 @@ export class LiveNewsProvider implements NewsProvider {
       const news = await this.client.request<FmpNews[]>("stock_news", { limit: 12 });
       return (news ?? []).slice(0, 12).map((item, index) => ({
         id: `market-live-${index}`,
-        title: item.title ?? "Live market headline",
+        title: item.title ?? "실시간 시장 헤드라인",
         source: item.site ?? "FMP",
         publishedAt: item.publishedDate ?? new Date().toISOString(),
         sentimentScore: 0.2,
         importanceScore: 0.55,
         tickers: [],
         sector: "Cross-Market",
-        summary: item.text ?? "Imported from live provider."
+        summary: item.text ?? "실시간 공급자에서 반영된 뉴스입니다."
       }));
     } catch {
       return this.fallback.getMarketNews();
@@ -306,7 +306,7 @@ export class LiveFundamentalsProvider implements FundamentalsProvider {
               sector: first.sector ?? fallbackProfiles[ticker]?.sector ?? "Unknown",
               industry: first.industry ?? fallbackProfiles[ticker]?.industry ?? "Unknown",
               themes: fallbackProfiles[ticker]?.themes ?? [],
-              description: first.description ?? fallbackProfiles[ticker]?.description ?? `${ticker} live profile.`
+              description: first.description ?? fallbackProfiles[ticker]?.description ?? `${ticker} 실시간 프로필입니다.`
             };
           }
         } catch {
@@ -353,7 +353,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
           {
             role: "system",
             content:
-              "You are an institutional-style US equity research assistant. Be concise, evidence-based, and explain why a stock is worth monitoring, not blindly buying."
+              "당신은 기관투자자 스타일의 미국주식 리서치 어시스턴트입니다. 짧고 근거 중심으로 답하고, 매수 추천보다 왜 감시할 가치가 있는지 설명하세요. 답변은 한국어로 작성하세요."
           },
           {
             role: "user",
@@ -379,7 +379,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
     }
 
     try {
-      return await this.completion(`Summarize this US market regime for a Korea-based swing trader in 3-4 sentences. Regime: ${input.market.regime}. Top sectors: ${input.sectors.slice(0, 4).map((item) => `${item.sector} ${item.score}`).join(", ")}. Key headlines: ${input.news.slice(0, 4).map((item) => item.title).join(" | ")}`);
+      return await this.completion(`한국 거주 스윙 투자자 기준으로 현재 미국 시장 레짐을 3~4문장으로 요약해 주세요. 레짐: ${input.market.regime}. 상위 섹터: ${input.sectors.slice(0, 4).map((item) => `${item.sector} ${item.score}`).join(", ")}. 핵심 헤드라인: ${input.news.slice(0, 4).map((item) => item.title).join(" | ")}`);
     } catch {
       return super.summarizeMarket(input);
     }
@@ -391,7 +391,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
     }
 
     try {
-      return await this.completion(`Summarize the strongest US equity themes in 3 sentences. Themes: ${input.themes.slice(0, 5).map((item) => `${item.name} score ${item.score}`).join(", ")}. Headlines: ${input.news.slice(0, 3).map((item) => item.title).join(" | ")}`);
+      return await this.completion(`지금 강한 미국주식 테마를 3문장으로 요약해 주세요. 테마: ${input.themes.slice(0, 5).map((item) => `${item.name} 점수 ${item.score}`).join(", ")}. 뉴스: ${input.news.slice(0, 3).map((item) => item.title).join(" | ")}`);
     } catch {
       return super.summarizeThemes(input);
     }
@@ -403,12 +403,12 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
     }
 
     try {
-      const response = await this.completion(`Return three short lines separated by || for bullish factors, bearish factors, and what to watch next for ${input.candidate.profile.ticker}. Score ${input.candidate.score.finalScore.toFixed(1)}, label ${input.candidate.label}, themes ${input.candidate.profile.themes.join(", ")}.`);
+      const response = await this.completion(`${input.candidate.profile.ticker}에 대해 상승 요인, 하락 요인, 다음 체크포인트를 아주 짧은 문장으로 각각 하나씩 작성해 주세요. 세 문장은 || 로 구분하세요. 점수 ${input.candidate.score.finalScore.toFixed(1)}, 라벨 ${input.candidate.label}, 테마 ${input.candidate.profile.themes.join(", ")}.`);
       const [bullish, bearish, next] = response.split("||").map((item) => item.trim());
       return {
-        bullishFactors: [bullish || `Sector strength remains supportive for ${input.candidate.profile.ticker}.`],
-        bearishFactors: [bearish || `Risk management still matters given the current setup.`],
-        whatToWatchNext: [next || `Watch for price confirmation through the next trigger level.`]
+        bullishFactors: [bullish || `${input.candidate.profile.ticker}는 현재 섹터 강도의 지원을 받고 있습니다.`],
+        bearishFactors: [bearish || "지금 구간에서는 리스크 관리가 여전히 중요합니다."],
+        whatToWatchNext: [next || "다음 트리거 가격 돌파 여부를 확인하세요."]
       };
     } catch {
       return super.summarizeStock(input);
