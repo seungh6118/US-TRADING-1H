@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: us-stock-ai-research
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_DATA_MODE
+        value: mock
+      - key: APP_DEFAULT_UNIVERSE
+        value: sp500
+      - key: APP_TIMEZONE
+        value: Asia/Seoul
+      - key: APP_DB_PATH
+        value: /data/stock-research.sqlite
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: FMP_BASE_URL
+        value: https://financialmodelingprep.com/api/v3
+    disk:
+      name: app-data
+      mountPath: /data
+      sizeGB: 5
