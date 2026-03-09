@@ -1,14 +1,16 @@
 services:
   - type: web
     name: us-stock-ai-research
-    runtime: docker
+    runtime: node
     plan: free
     region: singapore
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
     autoDeployTrigger: commit
     healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: 20.19.0
       - key: NODE_ENV
         value: production
       - key: APP_DATA_MODE

@@ -248,9 +248,9 @@ Current live mode is intentionally hybrid. It already supports live stock-level 
 
 ## Render Deployment
 
-This repo is now prepared for Render Free using `render.yaml`.
+This repo is now prepared for Render Free using `render.yaml` with the native Node runtime.
 
-Recommended flow:\n\n1. Push this project to a GitHub repository.\n2. In Render, create a new Blueprint service from that repo.\n3. Render will read `render.yaml` and create one free Docker web service.\n4. After first deploy succeeds, open the service environment settings and add:\n   - `FMP_API_KEY`\n   - `OPENAI_API_KEY`\n5. Change `APP_DATA_MODE` from `mock` to `live` when you are ready for real data.
+Recommended flow:\n\n1. Push this project to a GitHub repository.\n2. In Render, create a new Blueprint service from that repo.\n3. Render will read `render.yaml` and create one free Node web service.\n4. After first deploy succeeds, open the service environment settings and add:\n   - `FMP_API_KEY`\n   - `OPENAI_API_KEY`\n5. Change `APP_DATA_MODE` from `mock` to `live` when you are ready for real data.
 
 Important note:\n\n- Render Free web services spin down after 15 minutes of no traffic. The next request can take up to about a minute to wake the app up.\n- Free web services have an ephemeral filesystem, so saved watchlist data and local SQLite changes can reset after redeploys, restarts, or spin-down.\n- The core dashboard still works fine in free mode, but persistent user data is not guaranteed.\n- If you later need durable saved data, move the repository layer to Postgres or a hosted database.
 
