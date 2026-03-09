@@ -248,24 +248,11 @@ Current live mode is intentionally hybrid. It already supports live stock-level 
 
 ## Render Deployment
 
-This repo is now prepared for Render using `render.yaml` and a persistent disk.
+This repo is now prepared for Render Free using `render.yaml`.
 
-Recommended flow:
+Recommended flow:\n\n1. Push this project to a GitHub repository.\n2. In Render, create a new Blueprint service from that repo.\n3. Render will read `render.yaml` and create one free Docker web service.\n4. After first deploy succeeds, open the service environment settings and add:\n   - `FMP_API_KEY`\n   - `OPENAI_API_KEY`\n5. Change `APP_DATA_MODE` from `mock` to `live` when you are ready for real data.
 
-1. Push this project to a GitHub repository.
-2. In Render, create a new Blueprint service from that repo.
-3. Render will read `render.yaml` and create one Docker web service plus a persistent disk mounted at `/data`.
-4. The app will store SQLite at `/data/stock-research.sqlite` via `APP_DB_PATH`.
-5. After first deploy succeeds, open the service environment settings and add:
-   - `FMP_API_KEY`
-   - `OPENAI_API_KEY`
-6. Change `APP_DATA_MODE` from `mock` to `live` when you are ready for real data.
-
-Important note:
-
-- SQLite on persistent disk is suitable for a single-instance deployment.
-- Do not scale this service horizontally while using SQLite.
-- If you later need multi-instance deployment, move the repository layer to Postgres.
+Important note:\n\n- Render Free web services spin down after 15 minutes of no traffic. The next request can take up to about a minute to wake the app up.\n- Free web services have an ephemeral filesystem, so saved watchlist data and local SQLite changes can reset after redeploys, restarts, or spin-down.\n- The core dashboard still works fine in free mode, but persistent user data is not guaranteed.\n- If you later need durable saved data, move the repository layer to Postgres or a hosted database.
 
 ## Docker
 
