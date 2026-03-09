@@ -1,134 +1,61 @@
-﻿import { getDb } from "@/db/client";
+import { getDbState, saveDbState } from "@/db/client";
 import { SavedWatchlistItem, WatchlistSnapshotItem } from "@/lib/types";
 
-type SnapshotRow = Omit<WatchlistSnapshotItem, "isNew"> & { isNew: number };
+type SnapshotRecord = WatchlistSnapshotItem & { universe: string };
 
 export function getSavedWatchlist(): SavedWatchlistItem[] {
-  const db = getDb();
-  return db
-    .prepare("SELECT ticker, note, created_at as createdAt FROM saved_watchlist ORDER BY created_at ASC")
-    .all() as SavedWatchlistItem[];
+  return [...getDbState().savedWatchlist].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 export function toggleSavedWatchlist(ticker: string): SavedWatchlistItem[] {
-  const db = getDb();
-  const existing = db.prepare("SELECT ticker FROM saved_watchlist WHERE ticker = ?").get(ticker);
-  if (existing) {
-    db.prepare("DELETE FROM saved_watchlist WHERE ticker = ?").run(ticker);
-  } else {
-    db.prepare("INSERT INTO saved_watchlist (ticker, note, created_at) VALUES (?, ?, ?)").run(
-      ticker,
-      null,
-      new Date().toISOString()
-    );
-  }
+  const state = getDbState();
+  const existing = state.savedWatchlist.find((item) => item.ticker === ticker);
+  const nextState = {
+    ...state,
+    savedWatchlist: existing
+      ? state.savedWatchlist.filter((item) => item.ticker !== ticker)
+      : [...state.savedWatchlist, { ticker, note: null, createdAt: new Date().toISOString() }]
+  };
+
+  saveDbState(nextState);
   return getSavedWatchlist();
 }
 
 export function snapshotExists(snapshotDate: string, universe: string): boolean {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT COUNT(*) as count FROM watchlist_snapshots WHERE snapshot_date = ? AND universe = ?")
-    .get(snapshotDate, universe) as { count: number };
-  return row.count > 0;
+  return getDbState().snapshots.some((item) => item.date === snapshotDate && item.universe === universe);
 }
 
 export function saveSnapshot(snapshotDate: string, universe: string, items: WatchlistSnapshotItem[]): void {
-  const db = getDb();
-  const insert = db.prepare(`
-    INSERT OR REPLACE INTO watchlist_snapshots (
-      snapshot_date,
-      universe,
-      ticker,
-      company_name,
-      score,
-      label,
-      reason,
-      key_level,
-      invalidation,
-      next_checkpoint,
-      delta_from_prior,
-      is_new
-    ) VALUES (
-      @snapshot_date,
-      @universe,
-      @ticker,
-      @company_name,
-      @score,
-      @label,
-      @reason,
-      @key_level,
-      @invalidation,
-      @next_checkpoint,
-      @delta_from_prior,
-      @is_new
-    )
-  `);
-
-  const transaction = db.transaction((rows: WatchlistSnapshotItem[]) => {
-    rows.forEach((row) => {
-      insert.run({
-        snapshot_date: snapshotDate,
-        universe,
-        ticker: row.ticker,
-        company_name: row.companyName,
-        score: row.score,
-        label: row.label,
-        reason: row.reason,
-        key_level: row.keyLevel,
-        invalidation: row.invalidation,
-        next_checkpoint: row.nextCheckpoint,
-        delta_from_prior: row.deltaFromPrior,
-        is_new: row.isNew ? 1 : 0
-      });
-    });
+  const state = getDbState();
+  const filtered = state.snapshots.filter((item) => !(item.date === snapshotDate && item.universe === universe));
+  const records: SnapshotRecord[] = items.map((item) => ({ ...item, universe, date: snapshotDate }));
+  saveDbState({
+    ...state,
+    snapshots: [...filtered, ...records]
   });
-
-  transaction(items);
 }
 
 export function getLatestSnapshotDates(universe: string, limit = 2): string[] {
-  const db = getDb();
-  return (db
-    .prepare(
-      "SELECT DISTINCT snapshot_date as snapshotDate FROM watchlist_snapshots WHERE universe = ? ORDER BY snapshot_date DESC LIMIT ?"
-    )
-    .all(universe, limit) as Array<{ snapshotDate: string }>).map((row) => row.snapshotDate);
+  return Array.from(new Set(getDbState().snapshots.filter((item) => item.universe === universe).map((item) => item.date)))
+    .sort((left, right) => right.localeCompare(left))
+    .slice(0, limit);
 }
 
 export function getSnapshot(snapshotDate: string, universe: string): WatchlistSnapshotItem[] {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT
-        ticker,
-        company_name as companyName,
-        snapshot_date as date,
-        score,
-        label,
-        reason,
-        key_level as keyLevel,
-        invalidation,
-        next_checkpoint as nextCheckpoint,
-        delta_from_prior as deltaFromPrior,
-        is_new as isNew
-      FROM watchlist_snapshots
-      WHERE snapshot_date = ? AND universe = ?
-      ORDER BY score DESC`
-    )
-    .all(snapshotDate, universe) as SnapshotRow[];
-
-  return rows.map((row) => ({
-    ticker: row.ticker,
-    companyName: row.companyName,
-    date: row.date,
-    score: row.score,
-    label: row.label,
-    reason: row.reason,
-    keyLevel: row.keyLevel,
-    invalidation: row.invalidation,
-    nextCheckpoint: row.nextCheckpoint,
-    deltaFromPrior: row.deltaFromPrior,
-    isNew: Boolean(row.isNew)
-  }));
+  return getDbState().snapshots
+    .filter((item) => item.date === snapshotDate && item.universe === universe)
+    .sort((left, right) => right.score - left.score)
+    .map((item) => ({
+      ticker: item.ticker,
+      companyName: item.companyName,
+      date: item.date,
+      score: item.score,
+      label: item.label,
+      reason: item.reason,
+      keyLevel: item.keyLevel,
+      invalidation: item.invalidation,
+      nextCheckpoint: item.nextCheckpoint,
+      deltaFromPrior: item.deltaFromPrior,
+      isNew: item.isNew
+    }));
 }

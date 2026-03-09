@@ -1,10 +1,18 @@
-import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { dbConfig } from "@/lib/config";
+import { SavedWatchlistItem, WatchlistSnapshotItem } from "@/lib/types";
+
+type SnapshotRecord = WatchlistSnapshotItem & { universe: string };
+
+type DbState = {
+  savedWatchlist: SavedWatchlistItem[];
+  snapshots: SnapshotRecord[];
+};
 
 declare global {
-  var __stockResearchDb: Database.Database | undefined;
+  var __stockResearchState: DbState | undefined;
+  var __stockResearchStatePath: string | undefined;
 }
 
 function resolveDbPath(): string {
@@ -16,59 +24,62 @@ function resolveDbPath(): string {
   return path.join(process.cwd(), dbConfig.fallbackRelativePath);
 }
 
-function initialize(database: Database.Database) {
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS saved_watchlist (
-      ticker TEXT PRIMARY KEY,
-      note TEXT,
-      created_at TEXT NOT NULL
-    );
+function seedState(): DbState {
+  return {
+    savedWatchlist: [
+      { ticker: "NVDA", note: "AI leader", createdAt: new Date().toISOString() },
+      { ticker: "VRT", note: "Power chain", createdAt: new Date().toISOString() },
+      { ticker: "PANW", note: "Cyber reset", createdAt: new Date().toISOString() }
+    ],
+    snapshots: []
+  };
+}
 
-    CREATE TABLE IF NOT EXISTS watchlist_snapshots (
-      snapshot_date TEXT NOT NULL,
-      universe TEXT NOT NULL,
-      ticker TEXT NOT NULL,
-      company_name TEXT NOT NULL,
-      score REAL NOT NULL,
-      label TEXT NOT NULL,
-      reason TEXT NOT NULL,
-      key_level REAL NOT NULL,
-      invalidation TEXT NOT NULL,
-      next_checkpoint TEXT NOT NULL,
-      delta_from_prior REAL NOT NULL DEFAULT 0,
-      is_new INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (snapshot_date, universe, ticker)
-    );
-  `);
+function ensureStateFile(dbPath: string): DbState {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-  const count = database.prepare("SELECT COUNT(*) as count FROM saved_watchlist").get() as { count: number };
-  if (count.count === 0) {
-    const insert = database.prepare(
-      "INSERT INTO saved_watchlist (ticker, note, created_at) VALUES (@ticker, @note, @created_at)"
-    );
-    [
-      { ticker: "NVDA", note: "AI leader", created_at: new Date().toISOString() },
-      { ticker: "VRT", note: "Power chain", created_at: new Date().toISOString() },
-      { ticker: "PANW", note: "Cyber reset", created_at: new Date().toISOString() }
-    ].forEach((row) => insert.run(row));
+  if (!fs.existsSync(dbPath)) {
+    const state = seedState();
+    fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), "utf8");
+    return state;
+  }
+
+  try {
+    const raw = fs.readFileSync(dbPath, "utf8");
+    const parsed = JSON.parse(raw) as Partial<DbState>;
+    return {
+      savedWatchlist: parsed.savedWatchlist ?? seedState().savedWatchlist,
+      snapshots: parsed.snapshots ?? []
+    };
+  } catch {
+    const state = seedState();
+    fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), "utf8");
+    return state;
   }
 }
 
-export function getDb() {
-  if (!global.__stockResearchDb) {
-    const dbPath = resolveDbPath();
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-    const database = new Database(dbPath);
-    initialize(database);
-    global.__stockResearchDb = database;
+export function getDbState(): DbState {
+  const dbPath = resolveDbPath();
+  if (!global.__stockResearchState || global.__stockResearchStatePath !== dbPath) {
+    global.__stockResearchState = ensureStateFile(dbPath);
+    global.__stockResearchStatePath = dbPath;
   }
 
-  return global.__stockResearchDb;
+  return global.__stockResearchState;
+}
+
+export function saveDbState(state: DbState) {
+  const dbPath = resolveDbPath();
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), "utf8");
+  global.__stockResearchState = state;
+  global.__stockResearchStatePath = dbPath;
 }
 
 export function getDbInfo() {
+  const pathValue = resolveDbPath();
   return {
-    path: resolveDbPath(),
+    path: pathValue,
     persistentStorageConfigured: Boolean(process.env[dbConfig.envPathKey]?.trim())
   };
 }

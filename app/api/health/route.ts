@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getDb, getDbInfo } from "@/db/client";
+import { getDbInfo, getDbState } from "@/db/client";
 import { getProviderSet } from "@/providers/factory";
 
 export function GET() {
-  getDb();
+  getDbState();
   const providers = getProviderSet();
   const db = getDbInfo();
 
