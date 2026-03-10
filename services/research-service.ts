@@ -5,6 +5,7 @@ import { DashboardData, StockDetailData, UniverseKey } from "@/lib/types";
 import { getProviderSet } from "@/providers/factory";
 import { buildRiskAlerts, scoreCandidate } from "@/scoring";
 import { buildLiveSectorPerformance, buildLiveThemeSnapshots } from "@/services/live-analytics";
+import { buildLiveMarketRecap, buildMockMarketRecap } from "@/services/market-recap";
 import { ensureWatchlistSnapshot } from "@/services/watchlist-service";
 
 function resolveUniverseTickers(universe: UniverseKey, customTickers: string[] = []): string[] {
@@ -33,11 +34,10 @@ export async function getDashboardData(
 
   const sectors = providers.status.runtimeMode === "mock" ? await providers.marketDataProvider.getSectorPerformance() : buildLiveSectorPerformance(stocks);
   const themes = providers.status.runtimeMode === "mock" ? await providers.marketDataProvider.getThemeSnapshots() : buildLiveThemeSnapshots(stocks);
+  const marketRecap = providers.status.runtimeMode === "mock" ? buildMockMarketRecap() : await buildLiveMarketRecap(stocks);
 
-  const [marketSummary, themeSummary] = await Promise.all([
-    providers.aiProvider.summarizeMarket({ market: marketBase, sectors, news: marketNews }),
-    providers.aiProvider.summarizeThemes({ themes, news: marketNews })
-  ]);
+  const [themeSummary] = await Promise.all([providers.aiProvider.summarizeThemes({ themes, news: marketNews })]);
+  const marketSummary = marketRecap.interpretation;
 
   const market = { ...marketBase, aiSummary: marketSummary };
   const candidates = stocks
@@ -53,6 +53,7 @@ export async function getDashboardData(
     generatedAt: new Date().toISOString(),
     universe,
     market,
+    marketRecap,
     sectors,
     themes,
     candidates,

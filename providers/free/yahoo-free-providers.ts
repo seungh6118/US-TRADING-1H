@@ -1,5 +1,4 @@
 import {
-  AIProvider,
   CalendarProvider,
   EconomicEvent,
   FundamentalsProvider,
@@ -71,10 +70,21 @@ const metadataOverrides: Record<string, FreeMetadata> = {
     companyName: "Bloom Energy",
     sector: "Power Infrastructure",
     industry: "Fuel Cells & Distributed Power",
-    themes: ["Power Infrastructure"],
+    themes: ["Power Infrastructure", "AI"],
     marketCapBn: 7,
     averageDollarVolumeM: 450,
     beta: 1.9,
+    pe: null
+  },
+  PLTR: {
+    ticker: "PLTR",
+    companyName: "Palantir",
+    sector: "Technology",
+    industry: "AI Software & Government Analytics",
+    themes: ["AI"],
+    marketCapBn: 340,
+    averageDollarVolumeM: 3500,
+    beta: 1.7,
     pe: null
   },
   VST: {
@@ -174,6 +184,11 @@ function deriveTechnicals(history: PricePoint[], price: number) {
 
 function buildMetadata(ticker: string): FreeMetadata {
   const normalizedTicker = ticker.toUpperCase();
+  const override = metadataOverrides[normalizedTicker];
+  if (override) {
+    return override;
+  }
+
   const base = baseMockMap.get(normalizedTicker);
   if (base) {
     return {
@@ -189,23 +204,21 @@ function buildMetadata(ticker: string): FreeMetadata {
     };
   }
 
-  return (
-    metadataOverrides[normalizedTicker] ?? {
-      ticker: normalizedTicker,
-      companyName: normalizedTicker,
-      sector: "Technology",
-      industry: "Large Cap",
-      themes: ["AI"],
-      marketCapBn: 25,
-      averageDollarVolumeM: 500,
-      beta: 1,
-      pe: null
-    }
-  );
+  return {
+    ticker: normalizedTicker,
+    companyName: normalizedTicker,
+    sector: "Technology",
+    industry: "Large Cap",
+    themes: ["AI"],
+    marketCapBn: 25,
+    averageDollarVolumeM: 500,
+    beta: 1,
+    pe: null
+  };
 }
 
 function buildLimitedSummary(ticker: string) {
-  return `${ticker}는 무료 Yahoo 가격 모드로 계산되며, 뉴스와 실적 수정치는 제한적으로 반영됩니다.`;
+  return `${ticker}는 Yahoo 무료 가격 데이터를 바탕으로 계산하며, 뉴스와 실적 해석은 제한적으로 반영됩니다.`;
 }
 
 export class YahooFreeMarketDataProvider implements MarketDataProvider {
@@ -298,7 +311,7 @@ export class YahooFreeMarketDataProvider implements MarketDataProvider {
             epsSurprisePct: 0,
             guidance: "inline",
             epsRevisionScore: 50,
-            summary: "무료 Yahoo 가격 모드에서는 실적 및 EPS 수정치 데이터가 제한됩니다."
+            summary: "Yahoo 무료 모드에서는 실적과 EPS 수정치 데이터가 제한적입니다."
           },
           priceHistory: history,
           recentNews: [],

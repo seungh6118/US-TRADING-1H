@@ -33,7 +33,7 @@ function getMockProviderSet(): ProviderSet {
     status: {
       requestedMode: "mock",
       runtimeMode: "mock",
-      note: "샘플 데이터로 시장 구조를 미리 보는 모의 모드입니다. 실시간 시세 정확도 용도로 쓰면 안 됩니다."
+      note: "샘플 데이터로 화면과 점수 구조를 확인하는 모의 모드입니다. 실시간 정확도용으로 쓰면 안 됩니다."
     }
   };
 }
@@ -48,7 +48,7 @@ function getYahooFreeProviderSet(): ProviderSet {
     status: {
       requestedMode: "live",
       runtimeMode: "live",
-      note: "Yahoo 무료 가격 데이터를 기반으로 계산 중입니다. 가격/차트는 실시간에 가깝게 반영되지만 뉴스·실적·펀더멘털 일부는 제한적이거나 정적 메타데이터를 사용합니다."
+      note: "Yahoo 무료 가격 데이터를 바탕으로 계산 중입니다. 가격과 차트는 빠르게 반영되지만 뉴스, 실적, 펀더멘털 일부는 제한적이거나 정적 메타데이터를 사용합니다."
     }
   };
 }
@@ -84,8 +84,8 @@ export function getProviderSet(): ProviderSet {
       runtimeMode,
       note:
         runtimeMode === "hybrid"
-          ? "실시간 시세와 뉴스를 기반으로 점수를 계산하고, AI는 설명 보강에만 사용합니다."
-          : "실시간 시세와 뉴스를 기반으로 점수를 계산하는 실전 모드입니다."
+          ? "실시간 시세와 뉴스로 점수를 계산하고, AI는 설명 문장 보강에만 사용하는 하이브리드 모드입니다."
+          : "실시간 시세와 뉴스로 점수를 계산하는 실전 모드입니다."
     }
   };
 }

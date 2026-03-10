@@ -54,6 +54,7 @@ export interface MarketMacroSnapshot {
 export interface SectorPerformance {
   sector: string;
   etf: string;
+  performance1dPct: number;
   performance5dPct: number;
   performance20dPct: number;
   performance60dPct: number;
@@ -231,11 +232,21 @@ export interface WatchlistSummary {
   saved: SavedWatchlistItem[];
 }
 
+export interface MarketDailyRecap {
+  sessionDate: string;
+  indexFlow: string[];
+  strongAreas: string[];
+  weakAreas: string[];
+  standoutMovers: string[];
+  interpretation: string;
+}
+
 export interface DashboardData {
   status: AppStatus;
   generatedAt: string;
   universe: UniverseKey;
   market: MarketMacroSnapshot;
+  marketRecap: MarketDailyRecap;
   sectors: SectorPerformance[];
   themes: ThemeSnapshot[];
   candidates: CandidateStock[];

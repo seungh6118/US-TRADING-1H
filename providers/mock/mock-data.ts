@@ -546,6 +546,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Semiconductors",
     etf: "SOXX",
+    performance1dPct: 2.8,
     performance5dPct: 6.4,
     performance20dPct: 14.1,
     performance60dPct: 29.8,
@@ -556,6 +557,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Power Infrastructure",
     etf: "GRID",
+    performance1dPct: 2.4,
     performance5dPct: 5.1,
     performance20dPct: 11.2,
     performance60dPct: 24.4,
@@ -566,6 +568,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Utilities & Nuclear",
     etf: "XLU",
+    performance1dPct: 1.1,
     performance5dPct: 3.7,
     performance20dPct: 8.8,
     performance60dPct: 19.6,
@@ -576,6 +579,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Cybersecurity",
     etf: "HACK",
+    performance1dPct: 1.6,
     performance5dPct: 4.6,
     performance20dPct: 9.8,
     performance60dPct: 18.2,
@@ -586,6 +590,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Mega-Cap Platforms",
     etf: "QQQ",
+    performance1dPct: 1.3,
     performance5dPct: 2.9,
     performance20dPct: 7.4,
     performance60dPct: 16.7,
@@ -596,6 +601,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Defense",
     etf: "ITA",
+    performance1dPct: -0.5,
     performance5dPct: 1.5,
     performance20dPct: 4.2,
     performance60dPct: 11.1,
@@ -606,6 +612,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Healthcare",
     etf: "XLV",
+    performance1dPct: -0.1,
     performance5dPct: 2.1,
     performance20dPct: 5.1,
     performance60dPct: 9.7,
@@ -616,6 +623,7 @@ const sectorFixtures: SectorPerformance[] = [
   {
     sector: "Consumer Discretionary",
     etf: "XLY",
+    performance1dPct: -0.8,
     performance5dPct: -1.4,
     performance20dPct: -3.8,
     performance60dPct: 2.6,

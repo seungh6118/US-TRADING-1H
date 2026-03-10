@@ -48,6 +48,16 @@ function scoreMacroFit(stock: StockSnapshot, market: MarketMacroSnapshot): numbe
     score += defensiveSectors.has(stock.profile.sector) ? 14 : -10;
   }
 
+  if (stock.quote.change1dPct < 0 && stock.quote.change5dPct < 0) {
+    score -= 8;
+  }
+  if (stock.profile.sector === "Defense" && stock.quote.change1dPct < 0) {
+    score -= 10;
+  }
+  if (stock.profile.sector === "Power Infrastructure" && stock.profile.themes.includes("AI") && stock.quote.change1dPct > 0) {
+    score += 6;
+  }
+
   const vix = market.macroAssets.find((asset) => asset.symbol.includes("VIX"));
   const dxy = market.macroAssets.find((asset) => asset.symbol.includes("DXY") || asset.name.includes("DXY"));
   if ((vix?.value ?? 20) < 16) {
@@ -192,6 +202,8 @@ function deriveLabel(stock: StockSnapshot, score: ScoreBreakdown): CandidateLabe
     score.priceStructure >= 78 &&
     stock.technicals.volumeRatio >= 1.2 &&
     stock.technicals.distanceFromHighPct <= 4.5 &&
+    stock.quote.change1dPct >= 0 &&
+    stock.quote.change5dPct >= 0 &&
     stock.quote.change20dPct > 3
   ) {
     return "Breakout candidate";

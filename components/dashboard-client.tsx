@@ -252,7 +252,51 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Panel title="Market Regime Summary" subtitle={data.market.aiSummary} action={<span className="pill">{displayRegime(data.market.regime)}</span>}>
+        <Panel
+          title="Market Regime Summary"
+          subtitle={`${data.marketRecap.sessionDate} 미국장 요약: ${data.market.aiSummary}`}
+          action={<span className="pill">{displayRegime(data.market.regime)}</span>}
+        >
+          <div className="mb-5 grid gap-3 lg:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-1">
+              <p className="label">A. 지수 흐름</p>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
+                {data.marketRecap.indexFlow.map((item) => (
+                  <p key={item}>- {item}</p>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-4 lg:col-span-1">
+              <p className="label">B-1. 강한 섹터 / 테마</p>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
+                {data.marketRecap.strongAreas.map((item) => (
+                  <p key={item}>- {item}</p>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 p-4 lg:col-span-1">
+              <p className="label">B-2. 약한 섹터 / 테마</p>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
+                {data.marketRecap.weakAreas.map((item) => (
+                  <p key={item}>- {item}</p>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/5 p-4 lg:col-span-1">
+              <p className="label">C. 업종과 별개로 튀는 종목</p>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
+                {data.marketRecap.standoutMovers.map((item) => (
+                  <p key={item}>- {item}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-5 rounded-2xl border border-cyan-400/15 bg-cyan-400/5 p-4 text-sm leading-6 text-slate-200">
+            <p className="label">최종 해석</p>
+            <p className="mt-2">{data.marketRecap.interpretation}</p>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-3">
             {data.market.indices.concat(data.market.macroAssets).map((item) => (
               <div key={item.symbol} className="panel-muted p-4">
@@ -294,7 +338,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
                       <div className="h-2 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300" style={{ width: `${sector.score}%` }} />
                     </div>
                     <p className="mt-1 text-xs text-slate-400">
-                      5일 {formatPercent(sector.performance5dPct)} / 20일 {formatPercent(sector.performance20dPct)} / 60일 {formatPercent(sector.performance60dPct)}
+                      1일 {formatPercent(sector.performance1dPct)} / 5일 {formatPercent(sector.performance5dPct)} / 20일 {formatPercent(sector.performance20dPct)} / 60일 {formatPercent(sector.performance60dPct)}
                     </p>
                   </div>
                 ))}
