@@ -1,4 +1,4 @@
-import {
+﻿import {
   EconomicEvent,
   InstrumentSnapshot,
   NewsItem,
@@ -46,24 +46,24 @@ const stockSeeds: StockSeed[] = [
     sector: "Semiconductors",
     industry: "AI Accelerators",
     themes: ["AI", "Semiconductor"],
-    description: "Compute leader benefiting from hyperscaler and sovereign AI capex.",
-    currentPrice: 984,
-    startMultiplier: 0.48,
-    baseVolume: 44_000_000,
-    volumeRatioTarget: 1.55,
-    marketCapBn: 2410,
-    averageDollarVolumeM: 41200,
+    description: "AI leader, but the chart currently needs repair before it can be called a clean breakout.",
+    currentPrice: 177.82,
+    startMultiplier: 1.18,
+    baseVolume: 188_000_000,
+    volumeRatioTarget: 1.16,
+    marketCapBn: 2920,
+    averageDollarVolumeM: 33400,
     beta: 1.72,
-    pe: 41,
-    priceToSales: 23,
-    setup: "breakout",
-    revenueGrowthPct: 81,
-    epsSurprisePct: 11.2,
-    guidance: "raised",
-    epsRevisionScore: 88,
+    pe: 39,
+    priceToSales: 21,
+    setup: "avoid",
+    revenueGrowthPct: 61,
+    epsSurprisePct: 6.2,
+    guidance: "inline",
+    epsRevisionScore: 66,
     nextEarningsOffsetDays: 24,
-    newsTone: 0.82,
-    eventNote: "Cloud capex commentary remains the next catalyst."
+    newsTone: -0.08,
+    eventNote: "AI capex commentary matters, but price must first reclaim short-term trend support."
   },
   {
     ticker: "AVGO",
@@ -757,33 +757,33 @@ const marketNewsFixtures: NewsItem[] = [
 ];
 
 const localizedThemeSummaryMap: Record<string, string> = {
-  AI: "AI ?????輿????????????ル뒌?? ????????轅붽틓???壤굿?怨몃츕??????얠뺏??븍툙???????????袁ⓦ걤???ш낄猷????????筌?캉??",
-  Semiconductor: "?????밸븶筌믩끃??????????거딉㎗????????얠뺏??븍툙???????????쇰뮡???????關?쒎첎?嫄??ル?????????????? 2?????????욱떌???????レ졁?? ?????ル뒌?????????ル뒌???????몃뱥???? ?????????????곸죩.",
-  "Power Infrastructure": "?????獄쏅챶留???????????곗뵯鸚?????????????????勇???????獄쏅챶留???????곕츥?嶺뚮?爰?????????源낆┰??????ル뒌?? ??????????傭?끆????????????밸븶??????欲꼲?????????????????곸죩.",
-  Cloud: "??????????袁④뎬?????????癲??됀??AI ?????곌떽釉붾???? ???????????????猷몄굣???⑥レ몷??????????????????????곸죩.",
-  Cybersecurity: "?????곕츥????????????????汝뷴젆?琉껆?????????????????뉙뀭?欲꼲????⑥る뜪????????猿딅????????꾨굴???饔낅떽????????????얠뺏??븍툙?????耀붾굝??????耀붾굝?????????嚥▲굧?????????????????곸죩.",
-  Defense: "????μ떜媛?걫?????????살몝????モ섓㎗????繹먮끍?????耀붾굝??????????轅붽틓???壤굿?怨몃츕??????????ル뒌???????雅?굛肄???轅붽틓???袁⑥Ŀ?????????????獄쏅챶留??????????곸죩.",
-  Nuclear: "?????獄쏅챶留???????堉온?????????源낆┰??????ル뒌?? ???????????怨멸텛??????????????る옖????????살몝?轅붽틓??筌뚮랭沅?????????????????????곸죩.",
-  "Obesity Treatment": "??????椰????? ?????ル뒌??嶺?筌????????????ル뒌????汝뷴젆?琉?嶺뚮　維뽪쾮? ?????獄쏅챶留??癰귙룗猷?????????? ????????????筌?캉??",
-  Robotics: "?????????????源낆쭍????????????ル뒌??????饔낅떽?????????? ?????獄쏅챶留??癰귙룗猷??????堉온?????⑥ル??????븐뼐????????????곸죩."
+  AI: "AI는 여전히 시장의 중심 테마지만, 이제는 모든 종목이 아니라 실제 수익화와 차트 구조가 살아 있는 이름만 선별해야 하는 단계입니다.",
+  Semiconductor: "반도체는 핵심 리더군이 유지되고 있지만 상위 종목과 후발주 간 격차가 커져, 2선 종목도 무조건 좋은 국면은 아닙니다.",
+  "Power Infrastructure": "전력 인프라는 데이터센터 전력 부족과 송배전 투자 확대가 맞물려 중기 관심 테마로 유지되고 있습니다.",
+  Cloud: "클라우드는 AI 수익화 기대가 이어지지만 가격 반응은 메가캡 중심으로 차별화되고 있습니다.",
+  Cybersecurity: "사이버보안은 기업 지출이 비교적 견조해 방어적 성장 테마로 관찰 가치가 있습니다.",
+  Defense: "방산은 안정적이지만 현재 시장의 최우선 리더 테마라고 보기에는 탄력이 다소 약합니다.",
+  Nuclear: "원자력은 장기 전력 수요 확대 서사가 유효하지만 단기 추세는 종목별 편차가 큽니다.",
+  "Obesity Treatment": "비만 치료제는 펀더멘털은 여전히 좋지만 가격 측면에서는 숨 고르기 구간으로 보는 편이 맞습니다.",
+  Robotics: "로봇 테마는 서사는 남아 있지만 가격 확인이 약해 아직은 후순위 감시 영역입니다."
 };
 
 const localizedMarketNewsMap: Record<string, { title: string; summary: string }> = {
   "market-1": {
-    title: "AI infrastructure bid stays firm after hyperscaler capex comments",
-    summary: "Cloud capex guidance stayed firm and kept semiconductors plus power infrastructure supported."
+    title: "하이퍼스케일러 투자 코멘트가 AI 인프라 수요를 다시 지지",
+    summary: "클라우드 투자 가이던스가 크게 꺾이지 않아 반도체와 전력 인프라 관련 종목에 다시 관심이 붙는 흐름입니다."
   },
   "market-2": {
-    title: "Upcoming CPI and FOMC minutes raise chase risk",
-    summary: "Macro events are not outright bearish, but they do argue for tighter position sizing."
+    title: "CPI와 FOMC 의사록을 앞두고 추격 매수 리스크 확대",
+    summary: "지표 발표 자체가 곧바로 약세 신호는 아니지만, 이 구간에서는 포지션 크기 조절이 중요하다는 의미입니다."
   },
   "market-3": {
-    title: "Enterprise checks still support security software demand",
-    summary: "Checks suggest the main consolidation winners continue to take share."
+    title: "엔터프라이즈 체크에서 사이버보안 수요는 여전히 견조",
+    summary: "대형 고객 지출 흐름상 플랫폼 통합형 보안 업체들이 계속 점유율을 가져가는 그림입니다."
   },
   "market-4": {
-    title: "Power scarcity narrative broadens into the data-center supply chain",
-    summary: "Equipment and generation demand remain stronger than previous expectations."
+    title: "전력 부족 서사가 데이터센터 공급망 전반으로 확대",
+    summary: "발전과 전력 장비 모두 기존 예상보다 수요가 강하다는 점이 다시 확인되고 있습니다."
   }
 };
 
@@ -835,23 +835,23 @@ function buildStockNews(seed: StockSeed): NewsItem[] {
   const localizedDescription = getLocalizedStockDescription(seed.ticker, seed.description);
   const localizedEventNote = getLocalizedStockEventNote(seed.ticker, seed.eventNote);
   const themeLabel = displayTheme(seed.themes[0]);
-  const toneText = seed.newsTone > 0.6 ? "supports the setup" : seed.newsTone < 0 ? "raises risk" : "keeps focus on the setup";
+  const toneText = seed.newsTone > 0.6 ? "수급이 받쳐주는 흐름 유지" : seed.newsTone < 0 ? "단기 리스크 경계" : "다음 체크포인트 대기";
 
   return [
     {
       id: `${seed.ticker}-news-1`,
-      title: `${seed.companyName} ${toneText}`,
+      title: `${seed.companyName}, ${toneText}`,
       source: "ResearchFlow",
       publishedAt: getDateOffset(-1),
       sentimentScore: seed.newsTone,
       importanceScore: 0.74,
       tickers: [seed.ticker],
       sector: seed.sector,
-      summary: `${themeLabel} leadership remains relevant for ${seed.companyName}. ${localizedEventNote}`
+      summary: `${themeLabel} 테마 내에서 ${seed.companyName}의 위치를 다시 점검해야 합니다. ${localizedEventNote}`
     },
     {
       id: `${seed.ticker}-news-2`,
-      title: `${seed.companyName} investors watch the next catalyst`,
+      title: `${seed.companyName}, 다음 촉매 확인 필요`,
       source: "StreetPulse",
       publishedAt: getDateOffset(-3),
       sentimentScore: seed.newsTone * 0.8,
@@ -862,6 +862,7 @@ function buildStockNews(seed: StockSeed): NewsItem[] {
     }
   ];
 }
+
 function buildEvents(seed: StockSeed): StockEvent[] {
   const localizedEventNote = getLocalizedStockEventNote(seed.ticker, seed.eventNote);
   const themeLabel = displayTheme(seed.themes[0]);
@@ -869,20 +870,21 @@ function buildEvents(seed: StockSeed): StockEvent[] {
   return [
     {
       id: `${seed.ticker}-earnings`,
-      title: "Quarterly earnings",
+      title: "분기 실적 발표",
       date: getDateOffset(seed.nextEarningsOffsetDays),
       category: "earnings",
       note: localizedEventNote
     },
     {
       id: `${seed.ticker}-check`,
-      title: `${themeLabel} checkpoint`,
+      title: `${themeLabel} 체크포인트`,
       date: getDateOffset(seed.nextEarningsOffsetDays - 6),
       category: seed.themes[0] === "Defense" ? "regulatory" : "product",
-      note: `${themeLabel} interest still needs price confirmation.`
+      note: `${themeLabel} 관심이 실제 가격 회복으로 이어지는지 확인해야 합니다.`
     }
   ];
 }
+
 function buildSnapshot(seed: StockSeed): StockSnapshot {
   const priceHistory = generatePriceHistory(seed);
   const closes = priceHistory.map((point) => point.close);
@@ -940,7 +942,7 @@ function buildSnapshot(seed: StockSeed): StockSnapshot {
       epsSurprisePct: seed.epsSurprisePct,
       guidance: seed.guidance,
       epsRevisionScore: seed.epsRevisionScore,
-      summary: `${seed.guidance === "raised" ? "Raised guidance" : seed.guidance === "cut" ? "Cut guidance" : "Held guidance"} after a ${seed.epsSurprisePct.toFixed(1)}% EPS surprise.`
+      summary: `${seed.guidance === "raised" ? "가이던스 상향" : seed.guidance === "cut" ? "가이던스 하향" : "가이던스 유지"}, EPS 서프라이즈 ${seed.epsSurprisePct.toFixed(1)}%`
     },
     priceHistory,
     recentNews: buildStockNews(seed),
@@ -984,43 +986,44 @@ export function getMockEconomicEvents(): EconomicEvent[] {
   return [
     {
       id: "event-cpi",
-      title: "US CPI",
+      title: "미국 CPI",
       date: getDateOffset(1),
       impact: "high",
-      note: "A hot inflation print can shake higher-beta leadership names."
+      note: "물가가 예상보다 뜨거우면 고밸류 성장주에 다시 부담이 커질 수 있습니다."
     },
     {
       id: "event-fomc",
-      title: "FOMC Minutes",
+      title: "FOMC 의사록",
       date: getDateOffset(3),
       impact: "high",
-      note: "Watch rate-path language before adding extended names."
+      note: "금리 경로 관련 문구에 따라 달러와 장기금리가 다시 흔들릴 수 있습니다."
     },
     {
       id: "event-nfp",
-      title: "Nonfarm Payrolls",
+      title: "미국 고용지표",
       date: getDateOffset(5),
       impact: "medium",
-      note: "Labor surprises can influence yields and dollar direction."
+      note: "고용 서프라이즈는 국채금리와 달러 방향에 직접 영향을 줄 수 있습니다."
     }
   ];
 }
-export function getMockMacroSnapshot(): Omit<{ asOf: string; regime: "risk-on"; indices: InstrumentSnapshot[]; macroAssets: InstrumentSnapshot[]; economicEvents: EconomicEvent[] }, never> {
+
+export function getMockMacroSnapshot(): Omit<{ asOf: string; regime: "neutral"; indices: InstrumentSnapshot[]; macroAssets: InstrumentSnapshot[]; economicEvents: EconomicEvent[] }, never> {
   return {
     asOf: new Date().toISOString(),
-    regime: "risk-on",
+    regime: "neutral",
     indices: [
-      { symbol: "SPX", name: "S&P 500", value: 5284, change1dPct: 0.7, change5dPct: 1.9, trend: "up" },
-      { symbol: "NDX", name: "Nasdaq 100", value: 18860, change1dPct: 1.2, change5dPct: 3.4, trend: "up" },
-      { symbol: "RUT", name: "Russell 2000", value: 2136, change1dPct: 0.2, change5dPct: 0.6, trend: "flat" }
+      { symbol: "SPX", name: "S&P 500", value: 5078, change1dPct: 0.2, change5dPct: -0.8, trend: "flat" },
+      { symbol: "NDX", name: "Nasdaq 100", value: 17842, change1dPct: -0.5, change5dPct: -2.1, trend: "down" },
+      { symbol: "RUT", name: "Russell 2000", value: 2031, change1dPct: -0.6, change5dPct: -2.7, trend: "down" }
     ],
     macroAssets: [
-      { symbol: "VIX", name: "VIX", value: 14.8, change1dPct: -4.2, change5dPct: -8.1, trend: "down" },
-      { symbol: "US2Y", name: "UST 2Y", value: 4.11, change1dPct: -1.3, change5dPct: -2.1, trend: "down" },
-      { symbol: "US10Y", name: "UST 10Y", value: 3.91, change1dPct: -0.7, change5dPct: -1.4, trend: "down" },
-      { symbol: "DXY", name: "DXY", value: 102.4, change1dPct: -0.4, change5dPct: -0.8, trend: "down" },
-      { symbol: "WTI", name: "WTI", value: 79.6, change1dPct: 0.9, change5dPct: 2.7, trend: "up" },
-      { symbol: "XAU", name: "Gold", value: 2178, change1dPct: 0.3, change5dPct: 1.2, trend: "up" }
+      { symbol: "VIX", name: "VIX", value: 20.6, change1dPct: 3.4, change5dPct: 8.2, trend: "up" },
+      { symbol: "US2Y", name: "UST 2Y", value: 4.32, change1dPct: 0.4, change5dPct: 0.6, trend: "flat" },
+      { symbol: "US10Y", name: "UST 10Y", value: 4.14, change1dPct: 0.8, change5dPct: 1.1, trend: "up" },
+      { symbol: "DXY", name: "DXY", value: 103.8, change1dPct: 0.5, change5dPct: 0.9, trend: "up" },
+      { symbol: "WTI", name: "WTI", value: 78.1, change1dPct: -0.4, change5dPct: -1.2, trend: "flat" },
+      { symbol: "XAU", name: "Gold", value: 2168, change1dPct: 0.6, change5dPct: 1.8, trend: "up" }
     ],
     economicEvents: getMockEconomicEvents()
   };

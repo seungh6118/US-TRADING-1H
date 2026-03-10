@@ -1,4 +1,4 @@
-import { riskWindows, scoreWeights } from "@/lib/config";
+﻿import { riskWindows, scoreWeights } from "@/lib/config";
 import { displaySector, displayThemes } from "@/lib/localization";
 import {
   CandidateLabel,
@@ -179,16 +179,29 @@ function scoreRiskPenalty(stock: StockSnapshot): number {
 
 function deriveLabel(stock: StockSnapshot, score: ScoreBreakdown): CandidateLabel {
   const earningsDays = daysUntil(stock.earnings.nextEarningsDate);
+  const movingAverageAligned = stock.technicals.ma20 > stock.technicals.ma50 && stock.technicals.ma50 > stock.technicals.ma200;
+
   if (score.finalScore < 48 || score.riskPenalty >= 18) {
     return "Avoid";
   }
   if (earningsDays <= riskWindows.earningsDays && score.finalScore >= 58) {
     return "Earnings watch";
   }
-  if (score.priceStructure >= 76 && stock.technicals.volumeRatio >= 1.2 && stock.technicals.distanceFromHighPct <= 4.5) {
+  if (
+    movingAverageAligned &&
+    score.priceStructure >= 78 &&
+    stock.technicals.volumeRatio >= 1.2 &&
+    stock.technicals.distanceFromHighPct <= 4.5 &&
+    stock.quote.change20dPct > 3
+  ) {
     return "Breakout candidate";
   }
-  if (score.priceStructure >= 68 && stock.technicals.pullbackDepthPct >= 3 && stock.technicals.pullbackDepthPct <= 8) {
+  if (
+    score.priceStructure >= 68 &&
+    stock.technicals.pullbackDepthPct >= 3 &&
+    stock.technicals.pullbackDepthPct <= 10 &&
+    stock.quote.change5dPct >= 0
+  ) {
     return "Pullback candidate";
   }
   return score.finalScore >= 55 ? "Watch" : "Avoid";
@@ -209,45 +222,46 @@ function buildKeyLevels(stock: StockSnapshot) {
 function buildNarrative(stock: StockSnapshot, score: ScoreBreakdown, label: CandidateLabel) {
   const keyLevels = buildKeyLevels(stock);
   const earningsDays = daysUntil(stock.earnings.nextEarningsDate);
+  const aligned = stock.technicals.ma20 > stock.technicals.ma50 && stock.technicals.ma50 > stock.technicals.ma200;
 
   return {
     whyWatch: [
       `${displaySector(stock.profile.sector)} 섹터 강도가 현재 시장에서 상위권입니다.`,
-      `가격 구조 점수 ${score.priceStructure.toFixed(0)}점으로 ${stock.profile.ticker}는 이번 주 우선 감시 후보에 들어갑니다.`,
-      `${displayThemes(stock.profile.themes)} 테마가 최근 뉴스 흐름과 가격 반응에서 동시에 우위입니다.`
+      `가격 구조 점수 ${score.priceStructure.toFixed(0)}점으로 ${stock.profile.ticker}는 이번 주 감시 후보군에 들어갑니다.`,
+      `${displayThemes(stock.profile.themes)} 테마가 최근 뉴스 흐름과 가격 반응에서 동시에 살아 있습니다.`
     ],
     whyNotYet: [
       score.riskPenalty >= 9
-        ? `실적 발표가 ${earningsDays}일 남아 있어 이벤트 변동성 리스크가 큽니다.`
-        : "추세는 살아 있지만 바로 추격하기보다 지지 구간 확인이 더 필요합니다.",
+        ? `실적 발표가 ${earningsDays}일 앞으로 다가와 이벤트 변동성 리스크가 큽니다.`
+        : "추세가 완전히 회복된 것은 아니어서 바로 추격하기보다 지지 확인이 먼저입니다.",
       stock.technicals.volumeRatio < 1.1
-        ? "돌파를 정당화할 거래량 확증이 아직 충분하지 않습니다."
-        : "최근 반등은 긍정적이지만 손절 기준 없이 따라붙기에는 이격이 남아 있습니다.",
+        ? "돌파를 정당화할 거래량 확장이 아직 충분하지 않습니다."
+        : "반등은 나오고 있지만 손절 기준 없이 따라붙기에는 가격 부담이 남아 있습니다.",
       label === "Avoid"
-        ? "지금은 기대수익보다 리스크가 더 커 보여 관찰만 하는 편이 낫습니다."
-        : `리스크 패널티가 ${score.riskPenalty.toFixed(1)}점이라 진입 전 가격대 관리가 필요합니다.`
+        ? "지금은 기대수익보다 리스크가 더 커 보여 관찰 위주가 적절합니다."
+        : `리스크 패널티가 ${score.riskPenalty.toFixed(1)}점이라 진입 후 손절 관리가 중요합니다.`
     ],
     confirmation: [
-      `${keyLevels.support.toFixed(2)} 부근 지지가 유지되는지 확인합니다.`,
-      `${keyLevels.breakout.toFixed(2)} 돌파가 거래량 동반으로 나오는지 봅니다.`,
-      "다음 체크에서 상대강도와 20일 추세가 유지되는지 확인합니다."
+      `${keyLevels.support.toFixed(2)} 부근 지지가 유지되는지 확인하세요.`,
+      `${keyLevels.breakout.toFixed(2)} 돌파가 거래량 증가와 함께 나오는지가 핵심입니다.`,
+      "다음 체크에서 상대강도와 20일 추세가 계속 살아 있는지 점검하세요."
     ],
     invalidation: [
-      `${keyLevels.invalidation.toFixed(2)} 이탈 시 스윙 시나리오가 약해집니다.`,
-      "실적이나 가이던스 톤이 다시 둔화되면 점수 개선이 무효화됩니다.",
-      "시장 레짐이 리스크 온에서 중립 이하로 꺾이면 우선순위를 낮춰야 합니다."
+      `${keyLevels.invalidation.toFixed(2)} 아래로 밀리면 현재 시나리오는 무효로 보는 편이 맞습니다.`,
+      "실적이나 가이던스가 다시 악화되면 점수 개선 논리는 사라집니다.",
+      "시장 레짐이 다시 악화되면 우선순위를 낮춰야 합니다."
     ],
     bullishFactors: [
-      `${displayThemes(stock.profile.themes)} 관련 자금 흐름이 현재 시장에서 유리합니다.`,
-      `20/50/200 이동평균 배열은 ${stock.technicals.ma20 > stock.technicals.ma50 && stock.technicals.ma50 > stock.technicals.ma200 ? "정배열로 유지되고" : "아직 완전한 정배열은 아니지만 개선 중이고"} 있습니다.`
+      `${displayThemes(stock.profile.themes)} 관련 자금 흐름이 아직 완전히 꺾이지 않았습니다.`,
+      `20/50/200 이동평균 배열은 ${aligned ? "정배열 또는 그에 가까운 개선 흐름" : "아직 완전한 정배열은 아니지만 회복 시도"}입니다.`
     ],
     bearishFactors: [
-      `리스크 패널티가 ${score.riskPenalty.toFixed(1)}점으로 단기 이벤트 관리가 필요합니다.`,
+      `리스크 패널티 ${score.riskPenalty.toFixed(1)}점으로 단기 이벤트 관리가 필요합니다.`,
       `52주 고점 대비 ${stock.technicals.distanceFromHighPct.toFixed(1)}% 아래에 있어 아직 확인 구간이 남아 있습니다.`
     ],
     whatToWatchNext: [
       `${keyLevels.breakout.toFixed(2)} 부근이 다음 유효 트리거입니다.`,
-      `거래량 배수 ${stock.technicals.volumeRatio.toFixed(2)}x가 유지되는지 확인합니다.`
+      `거래량 배수 ${stock.technicals.volumeRatio.toFixed(2)}배가 유지되는지 확인하세요.`
     ]
   } satisfies StockNarrative;
 }
@@ -319,7 +333,7 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
         id: `${candidate.profile.ticker}-vol-alert`,
         ticker: candidate.profile.ticker,
         title: `${candidate.profile.ticker} 변동성 과열`,
-        reason: `ATR 기준 변동성이 ${candidate.technicals.atrPct.toFixed(1)}%로 높습니다.`,
+        reason: `ATR 기준 변동성이 ${candidate.technicals.atrPct.toFixed(1)}%로 높은 편입니다.`,
         severity: "medium",
         category: "volatility"
       });
@@ -338,7 +352,7 @@ export function buildRiskAlerts(candidates: CandidateStock[], market: MarketMacr
       alerts.push({
         id: `${candidate.profile.ticker}-headline-alert`,
         ticker: candidate.profile.ticker,
-        title: `${candidate.profile.ticker} 악재 헤드라인`,
+        title: `${candidate.profile.ticker} 부정 뉴스`,
         reason: "최근 뉴스 흐름에 부정적 요소가 있어 비중 조절이 필요합니다.",
         severity: "high",
         category: "headline"

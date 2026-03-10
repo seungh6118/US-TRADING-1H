@@ -1,4 +1,4 @@
-import {
+﻿import {
   AIProvider,
   CalendarProvider,
   CandidateStock,
@@ -101,28 +101,35 @@ export class MockCalendarProvider implements CalendarProvider {
 export class TemplateAIProvider implements AIProvider {
   async summarizeMarket(input: Parameters<AIProvider["summarizeMarket"]>[0]) {
     const topSectors = summarizeTopSectors([...input.sectors].sort((a, b) => b.score - a.score));
-    const macroTone = input.market.regime === "risk-on" ? "현재는 리스크 선호 흐름이 우세합니다" : "매크로 환경은 아직 완전히 편안하지 않습니다";
-    return `${macroTone}. 강한 섹터는 ${topSectors}입니다. 변동성 완화와 달러 약세가 성장 리더를 돕고 있지만, 가까운 경제 일정 때문에 이미 많이 오른 종목은 추격보다 눌림 확인이 더 적절합니다. 지금은 아무 종목이나 사는 구간이 아니라 구조가 깔끔하고 무효화 기준이 분명한 종목을 압축해서 보는 구간입니다.`;
+    const macroTone =
+      input.market.regime === "risk-on"
+        ? "현재 시장은 공격주에도 기회가 남아 있는 편입니다"
+        : input.market.regime === "risk-off"
+          ? "현재 시장은 방어적으로 접근하는 편이 유리합니다"
+          : "현재 시장은 방향성이 강하지 않아 종목 선별이 특히 중요합니다";
+
+    return `${macroTone}. 상위 섹터는 ${topSectors}입니다. 다만 경제 일정이 가까워 추격 매수보다는 지지 확인 뒤에 접근하는 편이 좋습니다. 지금 단계에서는 아무 종목이나 사는 앱이 아니라, 이번 주 계속 볼 이름을 압축하는 도구로 쓰는 것이 맞습니다.`;
   }
 
   async summarizeThemes(input: Parameters<AIProvider["summarizeThemes"]>[0]) {
-    return `지금 강한 테마는 ${summarizeTopThemes([...input.themes].sort((a, b) => b.score - a.score))}입니다. AI와 반도체가 여전히 시장 리더십을 주도하고 있고, 전력 인프라는 뉴스 흐름과 가격 반응이 함께 강한 보조 축으로 올라오고 있습니다. 사이버보안은 시장 전체보다 종목 선별이 더 중요한 구간입니다.`;
+    return `지금 점수가 높은 테마는 ${summarizeTopThemes([...input.themes].sort((a, b) => b.score - a.score))}입니다. AI와 반도체는 여전히 핵심 축이지만, 종목별 차트 구조 차이가 커져 같은 테마 안에서도 선별이 중요합니다. 전력 인프라와 사이버보안은 보조 리더군으로 관찰 가치가 있습니다.`;
   }
 
   async summarizeStock(input: { candidate: CandidateStock }): Promise<Pick<StockNarrative, "bullishFactors" | "bearishFactors" | "whatToWatchNext">> {
     const { candidate } = input;
+
     return {
       bullishFactors: [
-        `${displaySector(candidate.profile.sector)} 상대강도가 현재 시장에서 우위입니다.`,
-        `52주 고점 대비 ${candidate.technicals.distanceFromHighPct.toFixed(1)}% 아래에 있어 감시 가치가 유지됩니다.`
+        `${displaySector(candidate.profile.sector)} 내 상대 위치가 아직 크게 무너지지 않았습니다.`,
+        `52주 고점 대비 ${candidate.technicals.distanceFromHighPct.toFixed(1)}% 아래에 있어 구조 회복 시 재평가 여지가 있습니다.`
       ],
       bearishFactors: [
-        `리스크 패널티가 ${candidate.score.riskPenalty.toFixed(1)}점이라 진입 전 손절 기준 관리가 필요합니다.`,
-        `${candidate.eventCalendar[0]?.title ?? "가까운 이벤트"}를 앞두고 단기 변동성이 커질 수 있습니다.`
+        `리스크 패널티가 ${candidate.score.riskPenalty.toFixed(1)}점으로 단기 이벤트 관리가 필요합니다.`,
+        `${candidate.eventCalendar[0]?.title ?? "가까운 이벤트"} 전까지는 변동성 확대 가능성을 열어둬야 합니다.`
       ],
       whatToWatchNext: [
         `${candidate.keyLevels.breakout.toFixed(2)} 돌파가 거래량과 함께 나오는지 확인하세요.`,
-        `${candidate.keyLevels.invalidation.toFixed(2)} 이탈 시에는 시나리오를 다시 점검해야 합니다.`
+        `${candidate.keyLevels.invalidation.toFixed(2)} 아래로 밀리면 시나리오를 다시 점검하는 편이 좋습니다.`
       ]
     };
   }

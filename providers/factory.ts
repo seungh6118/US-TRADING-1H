@@ -1,4 +1,4 @@
-import { appConfig } from "@/lib/config";
+﻿import { appConfig } from "@/lib/config";
 import { ProviderSet } from "@/lib/types";
 import { FmpClient } from "@/providers/live/fmp-client";
 import {
@@ -27,7 +27,7 @@ export function getProviderSet(): ProviderSet {
       status: {
         requestedMode: "mock",
         runtimeMode: "mock",
-        note: "샘플 시장 데이터와 후보 종목, 감시리스트를 바로 확인할 수 있는 모의 모드입니다."
+        note: "샘플 데이터로 시장 요약, 후보 종목, 감시리스트 흐름을 바로 확인할 수 있는 모의 모드입니다."
       }
     };
   }
@@ -43,7 +43,7 @@ export function getProviderSet(): ProviderSet {
       status: {
         requestedMode: "live",
         runtimeMode: "mock",
-        note: "실시간 모드가 선택되었지만 FMP_API_KEY가 없어 모의 데이터로 자동 전환되었습니다."
+        note: "실시간 모드를 선택했지만 FMP_API_KEY가 없어 모의 데이터로 자동 전환되었습니다."
       }
     };
   }
@@ -57,7 +57,7 @@ export function getProviderSet(): ProviderSet {
     status: {
       requestedMode: "live",
       runtimeMode: process.env.OPENAI_API_KEY ? "hybrid" : "hybrid",
-      note: "실시간 종목 데이터와 확장 가능한 테마 스캐닝을 함께 쓰는 혼합 모드입니다."
+      note: "실시간 시세와 뉴스에 AI 설명을 결합한 혼합 모드입니다."
     }
   };
 }
