@@ -17,6 +17,7 @@ function labelTone(label: StockDetailData["candidate"]["label"]) {
 
 export function StockDetailView({ data }: { data: StockDetailData }) {
   const { candidate } = data;
+  const isMock = data.status.runtimeMode === "mock";
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
@@ -28,27 +29,33 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Badge tone="info">{displaySector(candidate.profile.sector)}</Badge>
             <Badge tone={labelTone(candidate.label)}>{displayCandidateLabel(candidate.label)}</Badge>
+            {isMock ? <Badge tone="danger">실시간 아님</Badge> : null}
             <ScoreBadge score={candidate.score.finalScore} />
           </div>
           <h1 className="mt-3 text-4xl text-slate-50 sm:text-5xl">
             {candidate.profile.companyName} ({candidate.profile.ticker})
           </h1>
           <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">{candidate.profile.description}</p>
+          {isMock ? (
+            <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm leading-6 text-rose-100">
+              이 화면의 현재가, 수익률, 52주 고점 대비, 거래량 배수는 실시간 값이 아니라 샘플 데이터입니다. 실매매 판단에는 사용하면 안 됩니다.
+            </div>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="panel-muted p-3">
-            <p className="label">현재가</p>
+            <p className="label">{isMock ? "샘플 현재가" : "현재가"}</p>
             <p className="mt-1 text-xl font-semibold">{formatCurrency(candidate.quote.price)}</p>
-            <p className="text-xs text-slate-400">1일 {formatPercent(candidate.quote.change1dPct)}</p>
+            <p className="text-xs text-slate-400">{isMock ? "샘플 1일" : "1일"} {formatPercent(candidate.quote.change1dPct)}</p>
           </div>
           <div className="panel-muted p-3">
-            <p className="label">52주 고점</p>
+            <p className="label">{isMock ? "샘플 52주 고점" : "52주 고점"}</p>
             <p className="mt-1 text-xl font-semibold">{formatCurrency(candidate.technicals.high52w)}</p>
-            <p className="text-xs text-slate-400">고점 대비 {candidate.technicals.distanceFromHighPct.toFixed(1)}% 아래</p>
+            <p className="text-xs text-slate-400">{isMock ? "샘플 기준" : "고점 대비"} {candidate.technicals.distanceFromHighPct.toFixed(1)}% 아래</p>
           </div>
           <div className="panel-muted p-3">
-            <p className="label">상대강도</p>
+            <p className="label">{isMock ? "샘플 상대강도" : "상대강도"}</p>
             <p className="mt-1 text-xl font-semibold">{candidate.technicals.relativeStrengthLine.toFixed(1)}</p>
             <p className="text-xs text-slate-400">S&P500 대비</p>
           </div>
@@ -77,7 +84,7 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
               <p className="mt-1 text-lg font-semibold">{formatCurrency(candidate.technicals.ma200)}</p>
             </div>
             <div className="panel-muted p-3">
-              <p className="label">거래량 배수</p>
+              <p className="label">{isMock ? "샘플 거래량 배수" : "거래량 배수"}</p>
               <p className="mt-1 text-lg font-semibold">{candidate.technicals.volumeRatio.toFixed(2)}x</p>
             </div>
           </div>
@@ -225,3 +232,4 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
     </main>
   );
 }
+

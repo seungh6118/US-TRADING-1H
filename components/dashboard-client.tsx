@@ -58,6 +58,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
   const [saved, setSaved] = useState<SavedWatchlistItem[]>(initialData.watchlist.saved);
   const [isPending, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
+  const isMock = data.status.runtimeMode === "mock";
 
   useEffect(() => {
     setSaved(data.watchlist.saved);
@@ -150,6 +151,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
             <Badge tone="info">미국주식 AI 리서치 레이더</Badge>
             <Badge tone={regimeTone(data.market.regime)}>{displayRegime(data.market.regime)}</Badge>
             <Badge tone={data.status.runtimeMode === "mock" ? "caution" : "positive"}>{displayRuntimeMode(data.status.runtimeMode)}</Badge>
+            {isMock ? <Badge tone="danger">실시간 아님</Badge> : null}
             <Badge tone="neutral">{displayUniverse(data.universe)}</Badge>
           </div>
           <h1 className="max-w-3xl text-4xl text-slate-50 sm:text-5xl">한국 거주 투자자를 위한 미국 스윙 후보 압축 리서치</h1>
@@ -177,6 +179,12 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
           </div>
         </div>
       </div>
+
+      {isMock ? (
+        <div className="mb-6 rounded-3xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm leading-6 text-rose-100">
+          현재 배포본은 실시간 시세가 아니라 샘플 데이터입니다. 현재가, 20일 수익률, 52주 고점 대비, 거래량 배수는 실제 시장값이 아니므로 매매 판단에 쓰면 안 됩니다.
+        </div>
+      ) : null}
 
       <div className="mb-6 grid gap-4 xl:grid-cols-3">
         <Panel title="오늘의 Top 3 액션 후보" subtitle="조건 충족 시 우선 확인할 이름입니다.">
@@ -465,10 +473,10 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
                         <p>무효 조건: {candidate.narrative.invalidation[0]}</p>
                       </div>
                       <div className="mt-3 grid gap-2 text-xs text-slate-400 md:grid-cols-4">
-                        <span>현재가 {formatCurrency(candidate.quote.price)}</span>
-                        <span>20일 {formatPercent(candidate.quote.change20dPct)}</span>
-                        <span>52주 고점 대비 {candidate.technicals.distanceFromHighPct.toFixed(1)}%</span>
-                        <span>거래량 {candidate.technicals.volumeRatio.toFixed(2)}배</span>
+                        <span>{isMock ? "샘플 현재가" : "현재가"} {formatCurrency(candidate.quote.price)}</span>
+                        <span>{isMock ? "샘플 20일" : "20일"} {formatPercent(candidate.quote.change20dPct)}</span>
+                        <span>{isMock ? "샘플 52주 고점 대비" : "52주 고점 대비"} {candidate.technicals.distanceFromHighPct.toFixed(1)}%</span>
+                        <span>{isMock ? "샘플 거래량" : "거래량"} {candidate.technicals.volumeRatio.toFixed(2)}배</span>
                       </div>
                       {snapshot ? (
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
@@ -556,3 +564,4 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
     </main>
   );
 }
+
