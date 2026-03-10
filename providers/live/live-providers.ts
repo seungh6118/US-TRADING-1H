@@ -15,6 +15,7 @@
   StockSnapshot
 } from "@/lib/types";
 import { getLocalizedStockDescription, getLocalizedStockEventNote } from "@/lib/localization";
+import { isProviderQuotaExceededError } from "@/lib/errors";
 import { average, clamp, getDateOffset, movingAverage } from "@/lib/utils";
 import type { MarketRegime } from "@/lib/types";
 import { FmpClient } from "@/providers/live/fmp-client";
@@ -50,14 +51,6 @@ type FmpProfile = {
   price?: number | string;
 };
 
-type FmpHistoricalPoint = {
-  date?: string;
-  close?: number | string;
-  volume?: number | string;
-};
-
-type FmpHistoricalResponse = FmpHistoricalPoint[] | { historical?: FmpHistoricalPoint[] };
-
 type FmpNews = {
   symbol?: string;
   title?: string;
@@ -67,26 +60,9 @@ type FmpNews = {
   url?: string;
 };
 
-type FmpEarningsSurprise = {
-  date?: string;
-  estimatedEarning?: number | string;
-  actualEarningResult?: number | string;
-};
-
 type FmpEarningsCalendar = {
   symbol?: string;
   date?: string;
-};
-
-type FmpPriceChange = {
-  symbol?: string;
-  "1D"?: number | string;
-  "5D"?: number | string;
-  "1M"?: number | string;
-  "3M"?: number | string;
-  "6M"?: number | string;
-  ytd?: number | string;
-  "1Y"?: number | string;
 };
 
 type FmpTreasuryRate = {
@@ -121,6 +97,12 @@ const negativeNewsTerms = ["miss", "cut", "probe", "delay", "lawsuit", "downgrad
 function logLiveWarning(scope: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   console.warn(`[live-provider:${scope}] ${message}`);
+}
+
+function rethrowIfQuotaExceeded(error: unknown): never | void {
+  if (isProviderQuotaExceededError(error)) {
+    throw error;
+  }
 }
 
 function toNumber(value: unknown): number | null {
@@ -158,25 +140,6 @@ function normalizeSingle<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
-function extractHistorical(response: FmpHistoricalResponse): FmpHistoricalPoint[] {
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  return response.historical ?? [];
-}
-
-function toPriceHistory(points: FmpHistoricalPoint[]) {
-  return points
-    .filter((point) => point.date && toNumber(point.close) !== null)
-    .map((point) => ({
-      date: toIsoDate(point.date) ?? new Date().toISOString(),
-      close: toNumber(point.close) ?? 0,
-      volume: Math.max(0, toNumber(point.volume) ?? 0)
-    }))
-    .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
-}
-
 function computePctChange(current: number, base: number) {
   if (!base) {
     return 0;
@@ -198,14 +161,13 @@ function buildFallbackPriceHistory(
   currentPrice: number,
   volume: number,
   avgVolume: number,
-  priceChange: FmpPriceChange | null,
   quote: FmpQuote | null
 ): PricePoint[] {
-  const pct1D = toNumber(priceChange?.["1D"]) ?? normalizePercent(quote?.changePercentage ?? quote?.changesPercentage);
-  const pct5D = toNumber(priceChange?.["5D"]) ?? pct1D * 2.5;
-  const pct1M = toNumber(priceChange?.["1M"]) ?? pct5D * 2.8;
-  const pct3M = toNumber(priceChange?.["3M"]) ?? pct1M * 1.8;
-  const pct1Y = toNumber(priceChange?.["1Y"]) ?? toNumber(priceChange?.ytd) ?? pct3M * 2.5;
+  const pct1D = normalizePercent(quote?.changePercentage ?? quote?.changesPercentage);
+  const pct5D = pct1D * 2.5;
+  const pct1M = pct5D * 2.8;
+  const pct3M = pct1M * 1.8;
+  const pct1Y = pct3M * 2.5;
 
   const anchors = [
     { offset: 252, price: deriveBasePriceFromPct(currentPrice, pct1Y) },
@@ -478,6 +440,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
       });
     const seriesSnapshots = seriesSnapshotResults.filter((item): item is InstrumentSnapshot => item !== null);
     const treasurySnapshots = await fetchTreasurySnapshots(this.client).catch((error) => {
+      rethrowIfQuotaExceeded(error);
       logLiveWarning("macro:treasury-rates", error);
       return [];
     });
@@ -505,6 +468,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
         (item): item is InstrumentSnapshot => Boolean(item)
       ),
       economicEvents: await new LiveCalendarProvider(this.client).getEconomicEvents().catch((error) => {
+        rethrowIfQuotaExceeded(error);
         logLiveWarning("macro:economic-calendar", error);
         return [];
       })
@@ -521,6 +485,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
 
   async getStockSnapshots(tickers: string[]): Promise<StockSnapshot[]> {
     const quotes = await this.client.request<FmpQuote[]>("batch-quote", { symbols: tickers.join(",") }).catch((error) => {
+      rethrowIfQuotaExceeded(error);
       logLiveWarning("stocks:batch-quote", error);
       return [];
     });
@@ -534,6 +499,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
 
     const [allNews, earningsCalendar] = await Promise.all([
       this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) }).catch((error) => {
+        rethrowIfQuotaExceeded(error);
         logLiveWarning("stocks:news", error);
         return [];
       }),
@@ -543,6 +509,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
           to: toDate.toISOString().slice(0, 10)
         })
         .catch((error) => {
+          rethrowIfQuotaExceeded(error);
           logLiveWarning("stocks:earnings-calendar", error);
           return [];
         })
@@ -552,8 +519,9 @@ export class LiveMarketDataProvider implements MarketDataProvider {
       tickers.map(async (ticker) => {
         const upperTicker = ticker.toUpperCase();
         const quote = quoteMap.get(upperTicker) ?? null;
-        const [profileResponse, historyRows, fallbackQuoteResponse, priceChangeResponse, earningsSurprises] = await Promise.all([
+        const [profileResponse, historyRows, fallbackQuoteResponse] = await Promise.all([
           this.client.request<FmpProfile[] | FmpProfile>("profile", { symbol: upperTicker }).catch((error) => {
+            rethrowIfQuotaExceeded(error);
             logLiveWarning(`stocks:${upperTicker}:profile`, error);
             return null;
           }),
@@ -564,22 +532,14 @@ export class LiveMarketDataProvider implements MarketDataProvider {
           quote
             ? Promise.resolve(null)
             : this.client.request<FmpQuote[] | FmpQuote>("quote", { symbol: upperTicker }).catch((error) => {
+                rethrowIfQuotaExceeded(error);
                 logLiveWarning(`stocks:${upperTicker}:quote`, error);
                 return null;
-              }),
-          this.client.request<FmpPriceChange[] | FmpPriceChange>("stock-price-change", { symbol: upperTicker }).catch((error) => {
-            logLiveWarning(`stocks:${upperTicker}:price-change`, error);
-            return null;
-          }),
-          this.client.request<FmpEarningsSurprise[]>("earnings-surprises", { symbol: upperTicker }).catch((error) => {
-            logLiveWarning(`stocks:${upperTicker}:earnings-surprises`, error);
-            return [];
-          })
+              })
         ]);
 
         const liveQuote = quote ?? normalizeSingle(fallbackQuoteResponse);
         const profile = normalizeSingle(profileResponse);
-        const priceChange = normalizeSingle(priceChangeResponse);
         let history = historyRows.slice(-260);
         const currentPrice = toNumber(liveQuote?.price) ?? toNumber(profile?.price) ?? history.at(-1)?.close ?? 0;
 
@@ -588,7 +548,6 @@ export class LiveMarketDataProvider implements MarketDataProvider {
             currentPrice,
             toNumber(liveQuote?.volume) ?? 0,
             toNumber(liveQuote?.avgVolume) ?? 0,
-            priceChange,
             liveQuote
           ).slice(-260);
         }
@@ -612,9 +571,9 @@ export class LiveMarketDataProvider implements MarketDataProvider {
         const change1dPct =
           normalizePercent(liveQuote?.changePercentage ?? liveQuote?.changesPercentage) ||
           computePctChange(currentPrice, toNumber(liveQuote?.previousClose) ?? history.at(-2)?.close ?? currentPrice);
-        const change5dPct = toNumber(priceChange?.["5D"]) ?? computePctChange(currentPrice, base5);
-        const change20dPct = toNumber(priceChange?.["1M"]) ?? computePctChange(currentPrice, base20);
-        const change60dPct = toNumber(priceChange?.["3M"]) ?? computePctChange(currentPrice, base60);
+        const change5dPct = computePctChange(currentPrice, base5);
+        const change20dPct = computePctChange(currentPrice, base20);
+        const change60dPct = computePctChange(currentPrice, base60);
         const technicals = deriveTechnicalsFromQuote(liveQuote, history, currentPrice, change5dPct, change20dPct);
         const recentNews = mapTickerNews(
           upperTicker,
@@ -622,7 +581,6 @@ export class LiveMarketDataProvider implements MarketDataProvider {
           profile.sector ?? "Unknown",
           (allNews ?? []).filter((item) => matchNewsToTicker(item, upperTicker, profile.companyName ?? upperTicker))
         );
-        const surprise = (earningsSurprises ?? []).find((item) => toIsoDate(item.date));
         const nextEarnings = (earningsCalendar ?? [])
           .filter((item) => item.symbol?.toUpperCase() === upperTicker)
           .map((item) => toIsoDate(item.date))
@@ -668,13 +626,10 @@ export class LiveMarketDataProvider implements MarketDataProvider {
           },
           technicals,
           earnings: {
-            lastReportDate: toIsoDate(surprise?.date) ?? getDateOffset(-45),
+            lastReportDate: getDateOffset(-45),
             nextEarningsDate: nextEarnings,
             revenueGrowthPct: 0,
-            epsSurprisePct:
-              toNumber(surprise?.estimatedEarning) && toNumber(surprise?.actualEarningResult)
-                ? computePctChange(toNumber(surprise?.actualEarningResult) ?? 0, toNumber(surprise?.estimatedEarning) ?? 1)
-                : 0,
+            epsSurprisePct: 0,
             guidance: "inline",
             epsRevisionScore: recentNews.length > 0 ? clamp(50 + recentNews.reduce((sum, item) => sum + item.sentimentScore, 0) * 20) : 50,
             summary:
@@ -725,6 +680,7 @@ export class LiveNewsProvider implements NewsProvider {
 
   async getMarketNews() {
     const news = await this.client.request<FmpNews[]>("news/stock-latest", { limit: 12 }).catch((error) => {
+      rethrowIfQuotaExceeded(error);
       logLiveWarning("news:market", error);
       return [];
     });
@@ -743,6 +699,7 @@ export class LiveNewsProvider implements NewsProvider {
 
   async getTickerNews(tickers: string[]) {
     const news = await this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) }).catch((error) => {
+      rethrowIfQuotaExceeded(error);
       logLiveWarning("news:ticker", error);
       return [];
     });
@@ -762,6 +719,7 @@ export class LiveFundamentalsProvider implements FundamentalsProvider {
     const entries = await Promise.all(
       tickers.map(async (ticker) => {
         const profileRows = await this.client.request<FmpProfile[]>("profile", { symbol: ticker.toUpperCase() }).catch((error) => {
+          rethrowIfQuotaExceeded(error);
           logLiveWarning(`fundamentals:${ticker.toUpperCase()}:profile`, error);
           return [];
         });
@@ -795,6 +753,7 @@ export class LiveFundamentalsProvider implements FundamentalsProvider {
     const from = new Date().toISOString().slice(0, 10);
     const to = new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10);
     const calendar = await this.client.request<FmpEarningsCalendar[]>("earnings-calendar", { from, to }).catch((error) => {
+      rethrowIfQuotaExceeded(error);
       logLiveWarning("fundamentals:earnings-calendar", error);
       return [];
     });
@@ -831,6 +790,7 @@ export class LiveCalendarProvider implements CalendarProvider {
     const from = new Date().toISOString().slice(0, 10);
     const to = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const rows = await this.client.request<FmpEconomicCalendar[]>("economic-calendar", { from, to }).catch((error) => {
+      rethrowIfQuotaExceeded(error);
       logLiveWarning("calendar:economic-calendar", error);
       return [];
     });
