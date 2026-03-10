@@ -1,6 +1,8 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { isLiveDataUnavailableError } from "@/lib/errors";
 import { getStockDetail } from "@/services/research-service";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, { params }: { params: { ticker: string } }) {
   try {

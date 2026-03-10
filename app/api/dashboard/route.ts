@@ -3,6 +3,8 @@ import { isLiveDataUnavailableError } from "@/lib/errors";
 import { UniverseKey } from "@/lib/types";
 import { getDashboardData } from "@/services/research-service";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const universe = (request.nextUrl.searchParams.get("universe") ?? "sp500") as UniverseKey;

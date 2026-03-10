@@ -1,5 +1,7 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { toggleWatchlistTicker } from "@/services/watchlist-service";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as { ticker?: string };

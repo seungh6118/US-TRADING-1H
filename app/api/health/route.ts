@@ -3,6 +3,8 @@ import { getDbInfo, getDbState } from "@/db/client";
 import { isLiveDataUnavailableError } from "@/lib/errors";
 import { getProviderSet } from "@/providers/factory";
 
+export const dynamic = "force-dynamic";
+
 export function GET() {
   getDbState();
   const db = getDbInfo();
