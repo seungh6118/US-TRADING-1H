@@ -1,4 +1,4 @@
-﻿import { ReactNode } from "react";
+import { ReactNode } from "react";
 
 type PanelProps = {
   title: string;
@@ -18,11 +18,12 @@ const badgeStyles = {
 
 export function Panel({ title, subtitle, action, children, className = "" }: PanelProps) {
   return (
-    <section className={`panel p-5 ${className}`}>
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <p className="label">{title}</p>
-          {subtitle ? <p className="mt-2 text-sm text-slate-400">{subtitle}</p> : null}
+    <section className={`panel p-5 sm:p-6 ${className}`}>
+      <div className="mb-5 flex items-start justify-between gap-4 border-b border-white/6 pb-4">
+        <div className="min-w-0">
+          <p className="label">보드</p>
+          <h2 className="panel-title mt-2">{title}</h2>
+          {subtitle ? <p className="panel-subtitle">{subtitle}</p> : null}
         </div>
         {action}
       </div>
