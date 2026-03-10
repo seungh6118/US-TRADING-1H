@@ -72,6 +72,10 @@ function formatBillions(value: number) {
   return `${value.toFixed(value >= 100 ? 0 : 1)}B`;
 }
 
+function summarizeBrief(items: string[], count = 2) {
+  return items.slice(0, count).join(" / ");
+}
+
 function shortTermPriority(candidate: DashboardData["candidates"][number]) {
   const labelBonus =
     candidate.label === "Breakout candidate"
@@ -154,6 +158,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
 
   const heatmapCandidates = rankedCandidates.length > 0 ? rankedCandidates : [...data.candidates].sort((left, right) => shortTermPriority(right) - shortTermPriority(left));
   const shortTermFocus = heatmapCandidates.slice(0, 3);
+  const marketTape = data.market.indices.concat(data.market.macroAssets).slice(0, 6);
 
   async function loadDashboard(nextUniverse: UniverseKey, custom = customTickerInput) {
     const params = new URLSearchParams({ universe: nextUniverse });
@@ -266,55 +271,39 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Panel
-          title="시장 레짐 요약"
-          subtitle={`${data.marketRecap.sessionDate} 미국장 요약: ${data.market.aiSummary}`}
+          title="시장 브리프"
+          subtitle={`${data.marketRecap.sessionDate} 장세를 10초 안에 읽는 요약판입니다.`}
           action={<span className="pill">{displayRegime(data.market.regime)}</span>}
         >
-          <div className="mb-5 grid gap-3 lg:grid-cols-4">
-            <div className="panel-muted p-4 lg:col-span-1">
-              <p className="label">A. 지수 흐름</p>
-              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
-                {data.marketRecap.indexFlow.map((item) => (
-                  <p key={item}>- {item}</p>
-                ))}
-              </div>
+          <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="candidate-metric">
+              <p className="label">지수 흐름</p>
+              <p className="mt-2 text-sm leading-6 text-slate-100">{summarizeBrief(data.marketRecap.indexFlow) || "데이터 확인 중"}</p>
             </div>
-            <div className="panel-muted p-4 lg:col-span-1">
-              <p className="label">B-1. 강한 섹터 / 테마</p>
-              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
-                {data.marketRecap.strongAreas.map((item) => (
-                  <p key={item}>- {item}</p>
-                ))}
-              </div>
+            <div className="candidate-metric">
+              <p className="label">강한 쪽</p>
+              <p className="mt-2 text-sm leading-6 text-emerald-200">{summarizeBrief(data.marketRecap.strongAreas) || "데이터 확인 중"}</p>
             </div>
-            <div className="panel-muted p-4 lg:col-span-1">
-              <p className="label">B-2. 약한 섹터 / 테마</p>
-              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
-                {data.marketRecap.weakAreas.map((item) => (
-                  <p key={item}>- {item}</p>
-                ))}
-              </div>
+            <div className="candidate-metric">
+              <p className="label">약한 쪽</p>
+              <p className="mt-2 text-sm leading-6 text-rose-200">{summarizeBrief(data.marketRecap.weakAreas) || "데이터 확인 중"}</p>
             </div>
-            <div className="panel-muted p-4 lg:col-span-1">
-              <p className="label">C. 업종과 별개로 튀는 종목</p>
-              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
-                {data.marketRecap.standoutMovers.map((item) => (
-                  <p key={item}>- {item}</p>
-                ))}
-              </div>
+            <div className="candidate-metric">
+              <p className="label">튀는 종목</p>
+              <p className="mt-2 text-sm leading-6 text-cyan-100">{summarizeBrief(data.marketRecap.standoutMovers) || "데이터 확인 중"}</p>
             </div>
           </div>
 
-          <div className="mb-5 rounded-[22px] border border-cyan-400/15 bg-cyan-400/6 p-4 text-sm leading-6 text-slate-200">
-            <p className="label">최종 해석</p>
+          <div className="mb-4 rounded-[22px] border border-cyan-400/15 bg-cyan-400/6 p-4 text-sm leading-6 text-slate-100">
+            <p className="label">한 줄 해석</p>
             <p className="mt-2">{data.marketRecap.interpretation}</p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            {data.market.indices.concat(data.market.macroAssets).map((item) => (
+          <div className="mb-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+            {marketTape.map((item) => (
               <div key={item.symbol} className="candidate-metric">
                 <p className="label">{item.name}</p>
-                <p className="mt-1 text-xl font-semibold">{item.value.toLocaleString()}</p>
+                <p className="mt-1 text-base font-semibold text-white">{item.value.toLocaleString()}</p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-slate-300">
                   <span className={changeTone(item.change1dPct)}>{formatPercent(item.change1dPct)}</span>
                   <span className="text-slate-500">5일 {formatPercent(item.change5dPct)}</span>
@@ -322,15 +311,13 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
               </div>
             ))}
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {data.market.economicEvents.map((event) => (
-              <div key={event.id} className="panel-muted p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium">{event.title}</p>
-                  <Badge tone={event.impact === "high" ? "danger" : event.impact === "medium" ? "caution" : "neutral"}>{displayImpact(event.impact)}</Badge>
-                </div>
-                <p className="mt-2 text-sm text-slate-400">{formatDate(event.date)}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{event.note}</p>
+
+          <div className="flex flex-wrap gap-2">
+            {data.market.economicEvents.slice(0, 4).map((event) => (
+              <div key={event.id} className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3 py-2 text-xs text-slate-200">
+                <span>{event.title}</span>
+                <Badge tone={event.impact === "high" ? "danger" : event.impact === "medium" ? "caution" : "neutral"}>{displayImpact(event.impact)}</Badge>
+                <span className="text-slate-400">{formatDate(event.date)}</span>
               </div>
             ))}
           </div>
@@ -379,7 +366,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
 
         <Panel
           title="후보 전체 랭킹"
-          subtitle="아래 리스트도 2~3일 단기 관점 우선순위 순으로 정렬됩니다."
+          subtitle="트리거, 지지, 무효 가격을 중심으로 빠르게 훑는 트레이더형 보드입니다."
           className="xl:col-span-1"
           action={isPending ? <Badge tone="info">다시 계산 중</Badge> : <Badge tone="neutral">{heatmapCandidates.length}개 표시</Badge>}
         >
@@ -515,9 +502,10 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
 
                 return (
                   <div key={candidate.profile.ticker} className="candidate-row">
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
                           <Badge tone="info">#{index + 1}</Badge>
                           <Link href={`/stocks/${candidate.profile.ticker}`} className="text-xl font-semibold tracking-[-0.03em] text-white transition hover:text-cyan-200">
                             {candidate.profile.ticker}
@@ -530,79 +518,75 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
                               {displayTheme(theme)}
                             </Badge>
                           ))}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-200">{candidate.narrative.whyWatch[0]}</p>
                         </div>
-
-                        <p className="mt-3 text-base leading-7 text-slate-100">{candidate.narrative.whyWatch[0]}</p>
-
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
-                          <div className="candidate-metric">
-                            <p className="label">현재가</p>
-                            <p className="mt-1 text-base font-semibold text-white">{formatCurrency(candidate.quote.price)}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="candidate-metric min-w-[92px] text-center">
+                            <p className="label">점수</p>
+                            <p className="mt-1 text-lg font-semibold text-white">{candidate.score.finalScore.toFixed(1)}</p>
                           </div>
-                          <div className="candidate-metric">
-                            <p className="label">1일</p>
-                            <p className={`mt-1 text-base font-semibold ${changeTone(candidate.quote.change1dPct)}`}>{formatPercent(candidate.quote.change1dPct)}</p>
-                          </div>
-                          <div className="candidate-metric">
-                            <p className="label">20일</p>
-                            <p className={`mt-1 text-base font-semibold ${changeTone(candidate.quote.change20dPct)}`}>{formatPercent(candidate.quote.change20dPct)}</p>
-                          </div>
-                          <div className="candidate-metric">
-                            <p className="label">52주 고점 대비</p>
-                            <p className="mt-1 text-base font-semibold text-white">{candidate.technicals.distanceFromHighPct.toFixed(1)}%</p>
-                          </div>
-                          <div className="candidate-metric">
-                            <p className="label">거래량 배수</p>
-                            <p className="mt-1 text-base font-semibold text-white">{candidate.technicals.volumeRatio.toFixed(2)}x</p>
-                          </div>
-                          <div className="candidate-metric">
-                            <p className="label">시가총액</p>
-                            <p className="mt-1 text-base font-semibold text-white">{formatBillions(candidate.fundamentals.marketCapBn)}</p>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleWatchlist(candidate.profile.ticker)}
+                            className={isSaved ? "subtle-action text-rose-200 hover:bg-rose-400/10" : "primary-action"}
+                          >
+                            {isSaved ? "제거" : "저장"}
+                          </button>
+                          <Link href={`/stocks/${candidate.profile.ticker}`} className="subtle-action text-center text-slate-100 hover:bg-white/10">
+                            상세
+                          </Link>
                         </div>
-
-                        <div className="mt-4 grid gap-2 md:grid-cols-3">
-                          <div className="rounded-[18px] border border-amber-400/14 bg-amber-400/6 p-3">
-                            <p className="label">왜 아직 아닌가</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-200">{candidate.narrative.whyNotYet[0]}</p>
-                          </div>
-                          <div className="rounded-[18px] border border-cyan-400/14 bg-cyan-400/6 p-3">
-                            <p className="label">무엇이 확인되면 유효한가</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-200">{candidate.narrative.confirmation[0]}</p>
-                          </div>
-                          <div className="rounded-[18px] border border-rose-400/14 bg-rose-400/6 p-3">
-                            <p className="label">무효 조건</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-200">{candidate.narrative.invalidation[0]}</p>
-                          </div>
-                        </div>
-
-                        {snapshot ? (
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                            <span>감시 이유: {snapshot.reason}</span>
-                            <span>핵심 가격대 {snapshot.keyLevel.toFixed(2)}</span>
-                            <span>다음 체크포인트: {snapshot.nextCheckpoint}</span>
-                          </div>
-                        ) : null}
                       </div>
 
-                      <div className="flex flex-col gap-3">
-                        <div className="hero-stat">
-                          <p className="label">종합 점수</p>
-                          <div className="mt-2 flex items-center justify-between gap-3">
-                            <p className="text-3xl font-semibold text-white">{candidate.score.finalScore.toFixed(1)}</p>
-                            <ScoreBadge score={candidate.score.finalScore} />
-                          </div>
+                      <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-8">
+                        <div className="candidate-metric md:col-span-2">
+                          <p className="label">유효 트리거</p>
+                          <p className="mt-1 text-sm font-medium text-cyan-100">{candidate.narrative.confirmation[0]}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleWatchlist(candidate.profile.ticker)}
-                          className={isSaved ? "subtle-action text-rose-200 hover:bg-rose-400/10" : "primary-action"}
-                        >
-                          {isSaved ? "감시리스트에서 제거" : "감시리스트에 저장"}
-                        </button>
-                        <Link href={`/stocks/${candidate.profile.ticker}`} className="subtle-action text-center text-slate-100 hover:bg-white/10">
-                          상세 보기
-                        </Link>
+                        <div className="candidate-metric">
+                          <p className="label">현재가</p>
+                          <p className="mt-1 text-sm font-semibold text-white">{formatCurrency(candidate.quote.price)}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">1일</p>
+                          <p className={`mt-1 text-sm font-semibold ${changeTone(candidate.quote.change1dPct)}`}>{formatPercent(candidate.quote.change1dPct)}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">5일</p>
+                          <p className={`mt-1 text-sm font-semibold ${changeTone(candidate.quote.change5dPct)}`}>{formatPercent(candidate.quote.change5dPct)}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">거래량</p>
+                          <p className="mt-1 text-sm font-semibold text-white">{candidate.technicals.volumeRatio.toFixed(2)}x</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">돌파</p>
+                          <p className="mt-1 text-sm font-semibold text-white">{formatCurrency(candidate.keyLevels.breakout)}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">지지</p>
+                          <p className="mt-1 text-sm font-semibold text-white">{formatCurrency(candidate.keyLevels.support)}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">무효</p>
+                          <p className="mt-1 text-sm font-semibold text-rose-200">{formatCurrency(candidate.keyLevels.invalidation)}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 text-xs text-slate-400 md:grid-cols-3">
+                        <div className="candidate-metric">
+                          <p className="label">리스크</p>
+                          <p className="mt-1 leading-5 text-slate-300">{candidate.narrative.whyNotYet[0]}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">무효 조건</p>
+                          <p className="mt-1 leading-5 text-slate-300">{candidate.narrative.invalidation[0]}</p>
+                        </div>
+                        <div className="candidate-metric">
+                          <p className="label">다음 체크</p>
+                          <p className="mt-1 leading-5 text-slate-300">{snapshot?.nextCheckpoint ?? candidate.narrative.whatToWatchNext[0]}</p>
+                        </div>
                       </div>
                     </div>
                   </div>

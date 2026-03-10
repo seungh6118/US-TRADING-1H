@@ -21,7 +21,7 @@ export function Panel({ title, subtitle, action, children, className = "" }: Pan
     <section className={`panel p-5 sm:p-6 ${className}`}>
       <div className="mb-5 flex items-start justify-between gap-4 border-b border-white/6 pb-4">
         <div className="min-w-0">
-          <p className="label">보드</p>
+          <p className="label">패널</p>
           <h2 className="panel-title mt-2">{title}</h2>
           {subtitle ? <p className="panel-subtitle">{subtitle}</p> : null}
         </div>
