@@ -13,10 +13,6 @@ services:
         value: 20.19.0
       - key: HOSTNAME
         value: 0.0.0.0
-      - key: APP_DATA_MODE
-        value: mock
-      - key: APP_STRICT_LIVE_MODE
-        value: "true"
       - key: APP_DEFAULT_UNIVERSE
         value: sp500
       - key: APP_TIMEZONE
