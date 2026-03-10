@@ -16,7 +16,7 @@ const regimeMap: Record<MarketRegime, string> = {
 const runtimeMap: Record<ProviderRuntime, string> = {
   mock: "모의",
   live: "실시간",
-  hybrid: "혼합"
+  hybrid: "실시간+AI"
 };
 
 const candidateLabelMap: Record<CandidateLabel, string> = {
@@ -45,17 +45,30 @@ const universeMap: Record<UniverseKey, string> = {
   magnificent7: "매그니피센트 7",
   semiconductors: "반도체",
   defense: "방산",
+  powerInfrastructure: "전력 인프라",
   custom: "사용자 지정"
 };
 
 const sectorMap: Record<string, string> = {
   Semiconductors: "반도체",
+  Technology: "기술주",
+  Industrials: "산업재",
+  Energy: "에너지",
+  Utilities: "유틸리티",
+  Healthcare: "헬스케어",
+  Financials: "금융",
+  "Financial Services": "금융",
+  "Communication Services": "커뮤니케이션",
+  "Consumer Cyclical": "경기소비재",
+  "Consumer Defensive": "필수소비재",
+  Materials: "소재",
+  "Basic Materials": "기초소재",
+  "Real Estate": "부동산",
+  Cybersecurity: "사이버보안",
+  Defense: "방산",
+  "Mega-Cap Platforms": "메가캡 플랫폼",
   "Power Infrastructure": "전력 인프라",
   "Utilities & Nuclear": "유틸리티 / 원자력",
-  Cybersecurity: "사이버보안",
-  "Mega-Cap Platforms": "메가캡 플랫폼",
-  Defense: "방산",
-  Healthcare: "헬스케어",
   "Consumer Discretionary": "경기소비재",
   "Cross-Market": "시장 전체",
   Macro: "매크로"
@@ -90,6 +103,7 @@ const stockDescriptionMap: Record<string, string> = {
   ETN: "전력망 투자와 설비 증설 수요가 동시에 이어지는 산업 리더입니다.",
   GEV: "전력 장비 교체와 그리드 투자 확대 수혜가 기대되는 중기 추세 종목입니다.",
   CEG: "전력 부족과 원자력 기저 수요 증가의 수혜를 받는 발전 관련 대표주입니다.",
+  BE: "Bloom Energy는 데이터센터와 분산전원 수요 확대로 전력 인프라 테마에서 같이 봐야 할 종목입니다.",
   RTX: "방산 백로그는 탄탄하지만 추세 탄력은 성장 리더들보다 다소 완만합니다.",
   LMT: "방어적 성격은 있지만 최근 가격 모멘텀은 아직 제한적인 전통 방산주입니다.",
   LLY: "GLP-1 리더십은 유효하지만 최근 가격은 숨 고르기 구간으로 보는 편이 낫습니다.",
@@ -113,6 +127,7 @@ const stockEventNoteMap: Record<string, string> = {
   ETN: "백로그 유지와 가격 결정력이 계속 이어지는지 확인이 필요합니다.",
   GEV: "주문 유입과 마진 개선이 함께 이어지는지가 핵심입니다.",
   CEG: "장기 전력 계약 뉴스가 추가 상승 촉매가 될 수 있습니다.",
+  BE: "데이터센터 전력 수요와 현장 설치 증가가 실제 매출과 백로그로 이어지는지 확인해야 합니다.",
   RTX: "프로그램 실행 품질이 단기 헤드라인보다 더 중요합니다.",
   LMT: "백로그는 좋지만 추세 가속이 붙는지 추가 확인이 필요합니다.",
   LLY: "생산 능력 확대와 공급 업데이트가 다시 나오면 추세 재개 가능성이 있습니다.",
@@ -166,3 +181,4 @@ export function getLocalizedStockDescription(ticker: string, fallback: string): 
 export function getLocalizedStockEventNote(ticker: string, fallback: string): string {
   return stockEventNoteMap[ticker] ?? fallback;
 }
+

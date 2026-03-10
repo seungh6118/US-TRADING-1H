@@ -1,63 +1,157 @@
-import {
+﻿import {
   AIProvider,
   CalendarProvider,
   CandidateStock,
+  EconomicEvent,
   FundamentalsProvider,
+  InstrumentSnapshot,
   MarketDataProvider,
+  NewsItem,
   NewsProvider,
   StockEvent,
   StockNarrative,
   StockProfile,
   StockSnapshot
 } from "@/lib/types";
-import { average, getDateOffset, movingAverage } from "@/lib/utils";
+import { getLocalizedStockDescription, getLocalizedStockEventNote } from "@/lib/localization";
+import { average, clamp, getDateOffset, movingAverage } from "@/lib/utils";
+import type { MarketRegime } from "@/lib/types";
 import { FmpClient } from "@/providers/live/fmp-client";
-import {
-  MockCalendarProvider,
-  MockFundamentalsProvider,
-  MockMarketDataProvider,
-  MockNewsProvider,
-  TemplateAIProvider
-} from "@/providers/mock/mock-providers";
+import { TemplateAIProvider } from "@/providers/mock/mock-providers";
 
 type FmpQuote = {
-  symbol: string;
-  price: number;
-  changesPercentage?: number;
-  change?: number;
-  volume?: number;
-  marketCap?: number;
-  avgVolume?: number;
-  pe?: number;
+  symbol?: string;
+  name?: string;
+  price?: number | string;
+  changesPercentage?: number | string;
+  change?: number | string;
+  volume?: number | string;
+  marketCap?: number | string;
+  avgVolume?: number | string;
+  pe?: number | string;
 };
 
 type FmpProfile = {
-  symbol: string;
+  symbol?: string;
   companyName?: string;
   sector?: string;
   industry?: string;
   description?: string;
-  beta?: number;
-  price?: number;
-  mktCap?: number;
+  beta?: number | string;
+  mktCap?: number | string;
+  price?: number | string;
 };
 
-type FmpHistoricalResponse = {
-  historical?: Array<{ date: string; close: number; volume: number }>;
+type FmpHistoricalPoint = {
+  date?: string;
+  close?: number | string;
+  volume?: number | string;
 };
+
+type FmpHistoricalResponse = FmpHistoricalPoint[] | { historical?: FmpHistoricalPoint[] };
 
 type FmpNews = {
+  symbol?: string;
   title?: string;
   site?: string;
   publishedDate?: string;
   text?: string;
+  url?: string;
 };
 
 type FmpEarningsSurprise = {
   date?: string;
-  estimatedEarning?: number;
-  actualEarningResult?: number;
+  estimatedEarning?: number | string;
+  actualEarningResult?: number | string;
 };
+
+type FmpEarningsCalendar = {
+  symbol?: string;
+  date?: string;
+};
+
+type FmpTreasuryRate = {
+  date?: string;
+  year2?: number | string;
+  year10?: number | string;
+};
+
+type FmpEconomicCalendar = {
+  date?: string;
+  country?: string;
+  event?: string;
+  impact?: string;
+  actual?: string | number;
+  previous?: string | number;
+  consensus?: string | number;
+};
+
+const macroSeriesDefinitions = [
+  { symbol: "^GSPC", name: "S&P 500" },
+  { symbol: "^NDX", name: "Nasdaq 100" },
+  { symbol: "^RUT", name: "Russell 2000" },
+  { symbol: "^VIX", name: "VIX" },
+  { symbol: "DX-Y.NYB", name: "DXY" },
+  { symbol: "CLUSD", name: "WTI" },
+  { symbol: "GCUSD", name: "Gold" }
+] as const;
+
+const positiveNewsTerms = ["beat", "raised", "record", "growth", "demand", "contract", "wins", "backlog", "expands", "strong"];
+const negativeNewsTerms = ["miss", "cut", "probe", "delay", "lawsuit", "downgrade", "weak", "fall", "dilution", "risk"];
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const cleaned = value.replaceAll("%", "").replaceAll(",", "").trim();
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function toIsoDate(value: string | undefined | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function normalizePercent(value: unknown): number {
+  return toNumber(value) ?? 0;
+}
+
+function extractHistorical(response: FmpHistoricalResponse): FmpHistoricalPoint[] {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  return response.historical ?? [];
+}
+
+function toPriceHistory(points: FmpHistoricalPoint[]) {
+  return points
+    .filter((point) => point.date && toNumber(point.close) !== null)
+    .map((point) => ({
+      date: toIsoDate(point.date) ?? new Date().toISOString(),
+      close: toNumber(point.close) ?? 0,
+      volume: Math.max(0, toNumber(point.volume) ?? 0)
+    }))
+    .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+}
+
+function computePctChange(current: number, base: number) {
+  if (!base) {
+    return 0;
+  }
+
+  return ((current - base) / base) * 100;
+}
 
 function deriveTechnicals(history: StockSnapshot["priceHistory"]) {
   const closes = history.map((point) => point.close);
@@ -74,259 +168,468 @@ function deriveTechnicals(history: StockSnapshot["priceHistory"]) {
     ma200: movingAverage(closes, 200),
     high52w,
     low52w,
-    relativeStrengthLine: ((last - (closes.at(-61) ?? last)) / (closes.at(-61) ?? last)) * 100 - 12.5,
-    volumeRatio: (history.at(-1)?.volume ?? recentVolumeAverage) / recentVolumeAverage,
+    relativeStrengthLine: computePctChange(last, closes.at(-61) ?? last) - 12.5,
+    volumeRatio: recentVolumeAverage > 0 ? (history.at(-1)?.volume ?? recentVolumeAverage) / recentVolumeAverage : 1,
     atrPct: average(dailyRanges.slice(-14)) * 160,
-    distanceFromHighPct: ((high52w - last) / high52w) * 100,
-    pullbackDepthPct: ((recentMax - last) / recentMax) * 100
+    distanceFromHighPct: high52w > 0 ? ((high52w - last) / high52w) * 100 : 0,
+    pullbackDepthPct: recentMax > 0 ? ((recentMax - last) / recentMax) * 100 : 0
   };
 }
 
-function mapNews(ticker: string, sector: string, news: FmpNews[]) {
+function inferThemes(profile: Pick<StockProfile, "companyName" | "sector" | "industry" | "description">): string[] {
+  const text = `${profile.companyName} ${profile.sector} ${profile.industry} ${profile.description}`.toLowerCase();
+  const themes = new Set<string>();
+
+  if (/(ai|artificial intelligence|accelerator|gpu|asic|inference|model)/.test(text)) {
+    themes.add("AI");
+  }
+  if (/(semiconductor|chip|fabless|gpu|asic)/.test(text)) {
+    themes.add("Semiconductor");
+  }
+  if (/(cloud|hyperscaler|software infrastructure|data center)/.test(text)) {
+    themes.add("Cloud");
+  }
+  if (/(power|grid|electrical|fuel cell|generation|utility|transformer|energy infrastructure)/.test(text)) {
+    themes.add("Power Infrastructure");
+  }
+  if (/(nuclear|reactor|uranium|smr)/.test(text)) {
+    themes.add("Nuclear");
+  }
+  if (/(defense|aerospace|missile|military)/.test(text)) {
+    themes.add("Defense");
+  }
+  if (/(cyber|security|identity|endpoint|network security)/.test(text)) {
+    themes.add("Cybersecurity");
+  }
+  if (/(robotics|automation|autonomy|electric vehicle)/.test(text)) {
+    themes.add("Robotics");
+  }
+  if (/(obesity|glp-1|weight loss|diabetes)/.test(text)) {
+    themes.add("Obesity Treatment");
+  }
+
+  if (themes.size === 0) {
+    if (profile.sector === "Technology") {
+      themes.add("Cloud");
+    } else if (profile.sector === "Utilities" || profile.sector === "Energy") {
+      themes.add("Power Infrastructure");
+    }
+  }
+
+  return Array.from(themes);
+}
+
+function scoreNewsText(item: FmpNews) {
+  const text = `${item.title ?? ""} ${item.text ?? ""}`.toLowerCase();
+  let score = 0;
+
+  positiveNewsTerms.forEach((term) => {
+    if (text.includes(term)) {
+      score += 0.18;
+    }
+  });
+  negativeNewsTerms.forEach((term) => {
+    if (text.includes(term)) {
+      score -= 0.18;
+    }
+  });
+
+  return Math.max(-1, Math.min(1, score));
+}
+
+function importanceFromNews(item: FmpNews) {
+  const text = `${item.title ?? ""} ${item.text ?? ""}`.toLowerCase();
+  const hasCriticalKeyword = /(earnings|guidance|contract|backlog|downgrade|upgrade|cpi|fomc)/.test(text);
+  return hasCriticalKeyword ? 0.75 : 0.55;
+}
+
+function matchNewsToTicker(item: FmpNews, ticker: string, companyName: string) {
+  const haystack = `${item.symbol ?? ""} ${item.title ?? ""} ${item.text ?? ""}`.toLowerCase();
+  return haystack.includes(ticker.toLowerCase()) || haystack.includes(companyName.toLowerCase());
+}
+
+function mapTickerNews(ticker: string, companyName: string, sector: string, news: FmpNews[]): NewsItem[] {
   return news.slice(0, 3).map((item, index) => ({
     id: `${ticker}-live-news-${index}`,
-    title: item.title ?? `${ticker} 최근 헤드라인`,
+    title: item.title ?? `${ticker} 최근 뉴스`,
     source: item.site ?? "FMP",
-    publishedAt: item.publishedDate ?? new Date().toISOString(),
-    sentimentScore: 0.15,
-    importanceScore: 0.55,
+    publishedAt: toIsoDate(item.publishedDate) ?? new Date().toISOString(),
+    sentimentScore: scoreNewsText(item),
+    importanceScore: importanceFromNews(item),
     tickers: [ticker],
     sector,
-    summary: item.text ?? `${ticker} 관련 뉴스가 실시간 공급자에서 반영되었습니다.`
+    summary: item.text ?? `${companyName} 관련 뉴스 흐름입니다.`
   }));
 }
 
+function eventImpactToLevel(raw: string | undefined): EconomicEvent["impact"] {
+  const text = (raw ?? "").toLowerCase();
+  if (text.includes("high")) {
+    return "high";
+  }
+  if (text.includes("medium")) {
+    return "medium";
+  }
+  return "low";
+}
+
+async function fetchSeries(client: FmpClient, symbol: string) {
+  const response = await client.request<FmpHistoricalResponse>("historical-price-eod/light", { symbol });
+  return toPriceHistory(extractHistorical(response)).slice(-40);
+}
+
+async function buildSeriesSnapshot(client: FmpClient, symbol: string, name: string): Promise<InstrumentSnapshot> {
+  const history = await fetchSeries(client, symbol);
+  if (history.length < 6) {
+    throw new Error(`Insufficient history for ${symbol}`);
+  }
+
+  const last = history.at(-1)?.close ?? 0;
+  const prev = history.at(-2)?.close ?? last;
+  const base5 = history.at(-6)?.close ?? last;
+  const base20 = history.at(-21)?.close ?? last;
+  const trend = last > base20 ? "up" : last < base20 ? "down" : "flat";
+
+  return {
+    symbol,
+    name,
+    value: Number(last.toFixed(2)),
+    change1dPct: Number(computePctChange(last, prev).toFixed(2)),
+    change5dPct: Number(computePctChange(last, base5).toFixed(2)),
+    trend
+  };
+}
+
+async function fetchTreasurySnapshots(client: FmpClient): Promise<InstrumentSnapshot[]> {
+  const rows = await client.request<FmpTreasuryRate[]>("treasury-rates");
+  const history = (rows ?? []).slice(0, 10).reverse();
+  if (history.length < 6) {
+    return [];
+  }
+
+  const latest = history.at(-1);
+  const prev = history.at(-2);
+  const base5 = history.at(-6);
+  const year2 = toNumber(latest?.year2) ?? 0;
+  const year10 = toNumber(latest?.year10) ?? 0;
+
+  return [
+    {
+      symbol: "US2Y",
+      name: "UST 2Y",
+      value: year2,
+      change1dPct: year2 - (toNumber(prev?.year2) ?? year2),
+      change5dPct: year2 - (toNumber(base5?.year2) ?? year2),
+      trend: year2 > (toNumber(base5?.year2) ?? year2) ? "up" : year2 < (toNumber(base5?.year2) ?? year2) ? "down" : "flat"
+    },
+    {
+      symbol: "US10Y",
+      name: "UST 10Y",
+      value: year10,
+      change1dPct: year10 - (toNumber(prev?.year10) ?? year10),
+      change5dPct: year10 - (toNumber(base5?.year10) ?? year10),
+      trend: year10 > (toNumber(base5?.year10) ?? year10) ? "up" : year10 < (toNumber(base5?.year10) ?? year10) ? "down" : "flat"
+    }
+  ];
+}
+
 export class LiveMarketDataProvider implements MarketDataProvider {
-  constructor(
-    private readonly client: FmpClient,
-    private readonly fallback = new MockMarketDataProvider()
-  ) {}
+  constructor(private readonly client: FmpClient) {}
 
-  async getMacroSnapshot() {
-    if (!this.client.configured) {
-      return this.fallback.getMacroSnapshot();
-    }
+  async getMacroSnapshot(): Promise<{
+    asOf: string;
+    regime: MarketRegime;
+    indices: InstrumentSnapshot[];
+    macroAssets: InstrumentSnapshot[];
+    economicEvents: EconomicEvent[];
+  }> {
+    const seriesSnapshots = await Promise.all(macroSeriesDefinitions.map((item) => buildSeriesSnapshot(this.client, item.symbol, item.name)));
+    const treasurySnapshots = await fetchTreasurySnapshots(this.client);
 
-    try {
-      const proxies = await this.client.request<FmpQuote[]>("quote/SPY,QQQ,IWM,VIXY,SHY,IEF,UUP,USO,GLD");
-      const map = new Map((proxies ?? []).map((item) => [item.symbol, item]));
-      return {
-        asOf: new Date().toISOString(),
-        regime: "risk-on" as const,
-        indices: [
-          { symbol: "SPY", name: "S&P 500", value: map.get("SPY")?.price ?? 0, change1dPct: map.get("SPY")?.changesPercentage ?? 0, change5dPct: 1.4, trend: "up" as const },
-          { symbol: "QQQ", name: "Nasdaq 100", value: map.get("QQQ")?.price ?? 0, change1dPct: map.get("QQQ")?.changesPercentage ?? 0, change5dPct: 2.4, trend: "up" as const },
-          { symbol: "IWM", name: "Russell 2000", value: map.get("IWM")?.price ?? 0, change1dPct: map.get("IWM")?.changesPercentage ?? 0, change5dPct: 0.6, trend: "flat" as const }
-        ],
-        macroAssets: [
-          { symbol: "VIXY", name: "VIX 프록시", value: map.get("VIXY")?.price ?? 0, change1dPct: map.get("VIXY")?.changesPercentage ?? 0, change5dPct: -3.2, trend: "down" as const },
-          { symbol: "SHY", name: "미국채 2년물 프록시", value: map.get("SHY")?.price ?? 0, change1dPct: map.get("SHY")?.changesPercentage ?? 0, change5dPct: 0.4, trend: "flat" as const },
-          { symbol: "IEF", name: "미국채 10년물 프록시", value: map.get("IEF")?.price ?? 0, change1dPct: map.get("IEF")?.changesPercentage ?? 0, change5dPct: 0.7, trend: "flat" as const },
-          { symbol: "UUP", name: "달러 인덱스 프록시", value: map.get("UUP")?.price ?? 0, change1dPct: map.get("UUP")?.changesPercentage ?? 0, change5dPct: -0.5, trend: "down" as const },
-          { symbol: "USO", name: "WTI 프록시", value: map.get("USO")?.price ?? 0, change1dPct: map.get("USO")?.changesPercentage ?? 0, change5dPct: 1.1, trend: "up" as const },
-          { symbol: "GLD", name: "금 프록시", value: map.get("GLD")?.price ?? 0, change1dPct: map.get("GLD")?.changesPercentage ?? 0, change5dPct: 0.9, trend: "up" as const }
-        ],
-        economicEvents: await new MockCalendarProvider().getEconomicEvents()
-      };
-    } catch {
-      return this.fallback.getMacroSnapshot();
-    }
+    const spyLike = seriesSnapshots.find((item) => item.symbol === "^GSPC");
+    const qqqLike = seriesSnapshots.find((item) => item.symbol === "^NDX");
+    const iwmLike = seriesSnapshots.find((item) => item.symbol === "^RUT");
+    const vix = seriesSnapshots.find((item) => item.symbol === "^VIX");
+    const dxy = seriesSnapshots.find((item) => item.symbol === "DX-Y.NYB");
+
+    const riskScore =
+      (spyLike?.change5dPct ?? 0) +
+      (qqqLike?.change5dPct ?? 0) +
+      (iwmLike?.change5dPct ?? 0) -
+      ((vix?.value ?? 18) - 18) * 2 -
+      ((dxy?.change5dPct ?? 0) > 0 ? 4 : -2);
+
+    const regime: MarketRegime = riskScore >= 8 ? "risk-on" : riskScore <= -4 ? "risk-off" : "neutral";
+
+    return {
+      asOf: new Date().toISOString(),
+      regime,
+      indices: [spyLike, qqqLike, iwmLike].filter((item): item is InstrumentSnapshot => Boolean(item)),
+      macroAssets: [...treasurySnapshots, vix, dxy, seriesSnapshots.find((item) => item.symbol === "CLUSD"), seriesSnapshots.find((item) => item.symbol === "GCUSD")].filter(
+        (item): item is InstrumentSnapshot => Boolean(item)
+      ),
+      economicEvents: await new LiveCalendarProvider(this.client).getEconomicEvents()
+    };
   }
 
   async getSectorPerformance() {
-    return this.fallback.getSectorPerformance();
+    return [];
   }
 
   async getThemeSnapshots() {
-    return this.fallback.getThemeSnapshots();
+    return [];
   }
 
   async getStockSnapshots(tickers: string[]) {
-    if (!this.client.configured) {
-      return this.fallback.getStockSnapshots(tickers);
-    }
+    const quotes = await this.client.request<FmpQuote[]>("batch-quote", { symbols: tickers.join(",") });
+    const quoteMap = new Map((quotes ?? []).map((item) => [item.symbol?.toUpperCase() ?? "", item]));
 
-    const fallbackStocks = new Map((await this.fallback.getStockSnapshots(tickers)).map((stock) => [stock.profile.ticker, stock]));
+    const today = new Date();
+    const fromDate = new Date(today);
+    fromDate.setDate(today.getDate() - 2);
+    const toDate = new Date(today);
+    toDate.setDate(today.getDate() + 120);
 
-    const stocks = await Promise.all(
+    const [allNews, earningsCalendar] = await Promise.all([
+      this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) }),
+      this.client.request<FmpEarningsCalendar[]>("earnings-calendar", {
+        from: fromDate.toISOString().slice(0, 10),
+        to: toDate.toISOString().slice(0, 10)
+      })
+    ]);
+
+    return Promise.all(
       tickers.map(async (ticker) => {
-        const fallback = fallbackStocks.get(ticker);
-        if (!fallback) {
-          return null;
+        const upperTicker = ticker.toUpperCase();
+        const quote = quoteMap.get(upperTicker);
+        const [profileRows, historyRows, earningsSurprises] = await Promise.all([
+          this.client.request<FmpProfile[]>("profile", { symbol: upperTicker }),
+          this.client.request<FmpHistoricalResponse>("historical-price-eod/light", { symbol: upperTicker }),
+          this.client.request<FmpEarningsSurprise[]>("earnings-surprises", { symbol: upperTicker })
+        ]);
+
+        const profile = profileRows?.[0];
+        const history = toPriceHistory(extractHistorical(historyRows)).slice(-260);
+        if (!quote || !profile || history.length < 200) {
+          throw new Error(`Insufficient live data for ${upperTicker}`);
         }
 
-        try {
-          const [quoteResponse, profileResponse, historyResponse, newsResponse, earningsResponse] = await Promise.all([
-            this.client.request<FmpQuote[]>(`quote/${ticker}`),
-            this.client.request<FmpProfile[]>(`profile/${ticker}`),
-            this.client.request<FmpHistoricalResponse>(`historical-price-full/${ticker}`, { timeseries: 260 }),
-            this.client.request<FmpNews[]>("stock_news", { tickers: ticker, limit: 3 }),
-            this.client.request<FmpEarningsSurprise[]>(`earnings-surprises/${ticker}`)
-          ]);
-
-          const quote = quoteResponse?.[0];
-          const profile = profileResponse?.[0];
-          const history =
-            historyResponse?.historical
-              ?.slice(0, 260)
-              .reverse()
-              .map((point) => ({ date: new Date(point.date).toISOString(), close: point.close, volume: point.volume })) ?? fallback.priceHistory;
-          const technicals = deriveTechnicals(history);
-          const last = history.at(-1)?.close ?? quote?.price ?? fallback.quote.price;
-          const base20 = history.at(-21)?.close ?? last;
-          const base60 = history.at(-61)?.close ?? last;
-          const base5 = history.at(-6)?.close ?? last;
-
-          return {
-            profile: {
-              ticker,
-              companyName: profile?.companyName ?? fallback.profile.companyName,
-              sector: profile?.sector ?? fallback.profile.sector,
-              industry: profile?.industry ?? fallback.profile.industry,
-              themes: fallback.profile.themes,
-              description: profile?.description ?? fallback.profile.description
-            },
-            quote: {
-              ticker,
-              price: quote?.price ?? last,
-              change1dPct: quote?.changesPercentage ?? fallback.quote.change1dPct,
-              change5dPct: ((last - base5) / base5) * 100,
-              change20dPct: ((last - base20) / base20) * 100,
-              change60dPct: ((last - base60) / base60) * 100,
-              volume: quote?.volume ?? history.at(-1)?.volume ?? fallback.quote.volume
-            },
-            fundamentals: {
-              marketCapBn: (quote?.marketCap ?? profile?.mktCap ?? fallback.fundamentals.marketCapBn * 1_000_000_000) / 1_000_000_000,
-              averageDollarVolumeM: ((quote?.avgVolume ?? fallback.quote.volume) * (quote?.price ?? last)) / 1_000_000,
-              beta: profile?.beta ?? fallback.fundamentals.beta,
-              pe: quote?.pe ?? fallback.fundamentals.pe,
-              priceToSales: fallback.fundamentals.priceToSales
-            },
-            technicals,
-            earnings: {
-              lastReportDate: earningsResponse?.[0]?.date ? new Date(earningsResponse[0].date).toISOString() : fallback.earnings.lastReportDate,
-              nextEarningsDate: fallback.earnings.nextEarningsDate,
-              revenueGrowthPct: fallback.earnings.revenueGrowthPct,
-              epsSurprisePct:
-                earningsResponse?.[0]?.actualEarningResult && earningsResponse?.[0]?.estimatedEarning
-                  ? ((earningsResponse[0].actualEarningResult - earningsResponse[0].estimatedEarning) / earningsResponse[0].estimatedEarning) * 100
-                  : fallback.earnings.epsSurprisePct,
-              guidance: fallback.earnings.guidance,
-              epsRevisionScore: fallback.earnings.epsRevisionScore,
-              summary: fallback.earnings.summary
-            },
-            priceHistory: history,
-            recentNews: mapNews(ticker, profile?.sector ?? fallback.profile.sector, newsResponse ?? []),
-            eventCalendar: fallback.eventCalendar
-          } as StockSnapshot;
-        } catch {
-          return fallback;
+        const currentPrice = toNumber(quote.price) ?? history.at(-1)?.close ?? 0;
+        const latestHistoryPrice = history.at(-1)?.close ?? currentPrice;
+        if (latestHistoryPrice !== currentPrice) {
+          history[history.length - 1] = {
+            ...history[history.length - 1],
+            close: currentPrice,
+            volume: Math.max(history.at(-1)?.volume ?? 0, toNumber(quote.volume) ?? history.at(-1)?.volume ?? 0)
+          };
         }
+
+        const technicals = deriveTechnicals(history);
+        const base5 = history.at(-6)?.close ?? currentPrice;
+        const base20 = history.at(-21)?.close ?? currentPrice;
+        const base60 = history.at(-61)?.close ?? currentPrice;
+        const recentNews = mapTickerNews(
+          upperTicker,
+          profile.companyName ?? upperTicker,
+          profile.sector ?? "Unknown",
+          (allNews ?? []).filter((item) => matchNewsToTicker(item, upperTicker, profile.companyName ?? upperTicker))
+        );
+        const surprise = (earningsSurprises ?? []).find((item) => toIsoDate(item.date));
+        const nextEarnings = (earningsCalendar ?? [])
+          .filter((item) => item.symbol?.toUpperCase() === upperTicker)
+          .map((item) => toIsoDate(item.date))
+          .filter((value): value is string => Boolean(value))
+          .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0] ?? null;
+
+        const liveProfile: StockProfile = {
+          ticker: upperTicker,
+          companyName: profile.companyName ?? upperTicker,
+          sector: profile.sector ?? "Unknown",
+          industry: profile.industry ?? "Unknown",
+          themes: inferThemes({
+            companyName: profile.companyName ?? upperTicker,
+            sector: profile.sector ?? "Unknown",
+            industry: profile.industry ?? "Unknown",
+            description: profile.description ?? ""
+          }),
+          description: getLocalizedStockDescription(upperTicker, profile.description ?? `${upperTicker} 실시간 프로필입니다.`)
+        };
+
+        const earningsEventNote = getLocalizedStockEventNote(
+          upperTicker,
+          nextEarnings ? `다음 실적일은 ${nextEarnings.slice(0, 10)} 기준으로 확인됩니다.` : "다음 실적일은 아직 공급 데이터에서 확인되지 않았습니다."
+        );
+
+        return {
+          profile: liveProfile,
+          quote: {
+            ticker: upperTicker,
+            price: currentPrice,
+            change1dPct: normalizePercent(quote.changesPercentage),
+            change5dPct: computePctChange(currentPrice, base5),
+            change20dPct: computePctChange(currentPrice, base20),
+            change60dPct: computePctChange(currentPrice, base60),
+            volume: toNumber(quote.volume) ?? history.at(-1)?.volume ?? 0
+          },
+          fundamentals: {
+            marketCapBn: (toNumber(quote.marketCap) ?? toNumber(profile.mktCap) ?? 0) / 1_000_000_000,
+            averageDollarVolumeM: ((toNumber(quote.avgVolume) ?? average(history.slice(-20).map((point) => point.volume))) * currentPrice) / 1_000_000,
+            beta: toNumber(profile.beta) ?? 1,
+            pe: toNumber(quote.pe),
+            priceToSales: null
+          },
+          technicals,
+          earnings: {
+            lastReportDate: toIsoDate(surprise?.date) ?? getDateOffset(-45),
+            nextEarningsDate: nextEarnings,
+            revenueGrowthPct: 0,
+            epsSurprisePct:
+              toNumber(surprise?.estimatedEarning) && toNumber(surprise?.actualEarningResult)
+                ? computePctChange(toNumber(surprise?.actualEarningResult) ?? 0, toNumber(surprise?.estimatedEarning) ?? 1)
+                : 0,
+            guidance: "inline",
+            epsRevisionScore: recentNews.length > 0 ? clamp(50 + recentNews.reduce((sum, item) => sum + item.sentimentScore, 0) * 20) : 50,
+            summary:
+              nextEarnings ? `다음 실적일 ${nextEarnings.slice(0, 10)} 기준, 최근 뉴스와 가격 반응을 함께 체크하세요.` : "다음 실적일 미확인, 가격 구조와 뉴스 반응 위주로 점검하세요."
+          },
+          priceHistory: history,
+          recentNews,
+          eventCalendar: [
+            ...(nextEarnings
+              ? [
+                  {
+                    id: `${upperTicker}-earnings`,
+                    title: "다음 실적 발표",
+                    date: nextEarnings,
+                    category: "earnings" as const,
+                    note: earningsEventNote
+                  }
+                ]
+              : []),
+            {
+              id: `${upperTicker}-check`,
+              title: "다음 체크포인트",
+              date: getDateOffset(3),
+              category: "product",
+              note: earningsEventNote
+            }
+          ]
+        } satisfies StockSnapshot;
       })
     );
-
-    return stocks.filter((stock): stock is StockSnapshot => Boolean(stock));
   }
 }
 
 export class LiveNewsProvider implements NewsProvider {
-  constructor(
-    private readonly client: FmpClient,
-    private readonly fallback = new MockNewsProvider()
-  ) {}
+  constructor(private readonly client: FmpClient) {}
 
   async getMarketNews() {
-    if (!this.client.configured) {
-      return this.fallback.getMarketNews();
-    }
-
-    try {
-      const news = await this.client.request<FmpNews[]>("stock_news", { limit: 12 });
-      return (news ?? []).slice(0, 12).map((item, index) => ({
-        id: `market-live-${index}`,
-        title: item.title ?? "실시간 시장 헤드라인",
-        source: item.site ?? "FMP",
-        publishedAt: item.publishedDate ?? new Date().toISOString(),
-        sentimentScore: 0.2,
-        importanceScore: 0.55,
-        tickers: [],
-        sector: "Cross-Market",
-        summary: item.text ?? "실시간 공급자에서 반영된 뉴스입니다."
-      }));
-    } catch {
-      return this.fallback.getMarketNews();
-    }
+    const news = await this.client.request<FmpNews[]>("news/stock-latest", { limit: 12 });
+    return (news ?? []).slice(0, 12).map((item, index) => ({
+      id: `market-live-${index}`,
+      title: item.title ?? "실시간 시장 뉴스",
+      source: item.site ?? "FMP",
+      publishedAt: toIsoDate(item.publishedDate) ?? new Date().toISOString(),
+      sentimentScore: scoreNewsText(item),
+      importanceScore: importanceFromNews(item),
+      tickers: item.symbol ? [item.symbol.toUpperCase()] : [],
+      sector: "Cross-Market",
+      summary: item.text ?? "시장 전반 뉴스 흐름입니다."
+    }));
   }
 
   async getTickerNews(tickers: string[]) {
-    if (!this.client.configured) {
-      return this.fallback.getTickerNews(tickers);
-    }
-
-    const fallback = await this.fallback.getTickerNews(tickers);
-    const result: Record<string, Awaited<ReturnType<MockNewsProvider["getTickerNews"]>>[string]> = { ...fallback };
-
-    await Promise.all(
-      tickers.map(async (ticker) => {
-        try {
-          const news = await this.client.request<FmpNews[]>("stock_news", { tickers: ticker, limit: 3 });
-          result[ticker] = mapNews(ticker, fallback[ticker]?.[0]?.sector ?? "Cross-Market", news ?? []);
-        } catch {
-          result[ticker] = fallback[ticker] ?? [];
-        }
-      })
-    );
-
+    const news = await this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) });
+    const result: Record<string, NewsItem[]> = {};
+    tickers.forEach((ticker) => {
+      const upperTicker = ticker.toUpperCase();
+      result[upperTicker] = mapTickerNews(upperTicker, upperTicker, "Cross-Market", (news ?? []).filter((item) => matchNewsToTicker(item, upperTicker, upperTicker)));
+    });
     return result;
   }
 }
 
 export class LiveFundamentalsProvider implements FundamentalsProvider {
-  constructor(
-    private readonly client: FmpClient,
-    private readonly fallback = new MockFundamentalsProvider()
-  ) {}
+  constructor(private readonly client: FmpClient) {}
 
   async getStockProfiles(tickers: string[]): Promise<Record<string, StockProfile>> {
-    const fallbackProfiles = await this.fallback.getStockProfiles(tickers);
-    if (!this.client.configured) {
-      return fallbackProfiles;
-    }
-
-    const result = { ...fallbackProfiles };
-    await Promise.all(
+    const entries = await Promise.all(
       tickers.map(async (ticker) => {
-        try {
-          const profile = await this.client.request<FmpProfile[]>(`profile/${ticker}`);
-          const first = profile?.[0];
-          if (first) {
-            result[ticker] = {
-              ticker,
-              companyName: first.companyName ?? fallbackProfiles[ticker]?.companyName ?? ticker,
-              sector: first.sector ?? fallbackProfiles[ticker]?.sector ?? "Unknown",
-              industry: first.industry ?? fallbackProfiles[ticker]?.industry ?? "Unknown",
-              themes: fallbackProfiles[ticker]?.themes ?? [],
-              description: first.description ?? fallbackProfiles[ticker]?.description ?? `${ticker} 실시간 프로필입니다.`
-            };
-          }
-        } catch {
-          result[ticker] = fallbackProfiles[ticker];
+        const profileRows = await this.client.request<FmpProfile[]>("profile", { symbol: ticker.toUpperCase() });
+        const profile = profileRows?.[0];
+        if (!profile) {
+          return null;
         }
+
+        const stockProfile: StockProfile = {
+          ticker: ticker.toUpperCase(),
+          companyName: profile.companyName ?? ticker.toUpperCase(),
+          sector: profile.sector ?? "Unknown",
+          industry: profile.industry ?? "Unknown",
+          themes: inferThemes({
+            companyName: profile.companyName ?? ticker.toUpperCase(),
+            sector: profile.sector ?? "Unknown",
+            industry: profile.industry ?? "Unknown",
+            description: profile.description ?? ""
+          }),
+          description: getLocalizedStockDescription(ticker.toUpperCase(), profile.description ?? `${ticker.toUpperCase()} 실시간 프로필입니다.`)
+        };
+
+        return [ticker.toUpperCase(), stockProfile] as const;
       })
     );
-    return result;
+
+    return Object.fromEntries(entries.filter((entry): entry is readonly [string, StockProfile] => Boolean(entry)));
   }
 
   async getUpcomingEvents(tickers: string[]): Promise<Record<string, StockEvent[]>> {
-    return this.fallback.getUpcomingEvents(tickers);
+    const from = new Date().toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10);
+    const calendar = await this.client.request<FmpEarningsCalendar[]>("earnings-calendar", { from, to });
+    const result: Record<string, StockEvent[]> = {};
+
+    tickers.forEach((ticker) => {
+      const next = (calendar ?? [])
+        .filter((item) => item.symbol?.toUpperCase() === ticker.toUpperCase())
+        .map((item) => toIsoDate(item.date))
+        .filter((value): value is string => Boolean(value))
+        .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0];
+
+      result[ticker.toUpperCase()] = next
+        ? [
+            {
+              id: `${ticker.toUpperCase()}-earnings`,
+              title: "다음 실적 발표",
+              date: next,
+              category: "earnings",
+              note: `${ticker.toUpperCase()} 실적 발표 일정입니다.`
+            }
+          ]
+        : [];
+    });
+
+    return result;
   }
 }
 
 export class LiveCalendarProvider implements CalendarProvider {
-  constructor(private readonly fallback = new MockCalendarProvider()) {}
+  constructor(private readonly client: FmpClient) {}
 
   async getEconomicEvents() {
-    return this.fallback.getEconomicEvents();
+    const from = new Date().toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const rows = await this.client.request<FmpEconomicCalendar[]>("economic-calendar", { from, to });
+
+    return (rows ?? [])
+      .filter((item) => (item.country ?? "").toUpperCase() === "US")
+      .slice(0, 8)
+      .map((item, index) => ({
+        id: `econ-${index}`,
+        title: item.event ?? "미국 경제 일정",
+        date: toIsoDate(item.date) ?? new Date().toISOString(),
+        impact: eventImpactToLevel(item.impact),
+        note: `실제 ${item.actual ?? "-"}, 예상 ${item.consensus ?? "-"}, 이전 ${item.previous ?? "-"}`
+      } satisfies EconomicEvent));
   }
 }
 
@@ -353,7 +656,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
           {
             role: "system",
             content:
-              "당신은 기관투자자 스타일의 미국주식 리서치 어시스턴트입니다. 짧고 근거 중심으로 답하고, 매수 추천보다 왜 감시할 가치가 있는지 설명하세요. 답변은 한국어로 작성하세요."
+              "당신은 한국 거주 투자자를 위한 미국주식 리서치 보조자입니다. 매수 추천처럼 말하지 말고, 감시 우선순위와 확인 포인트를 짧고 명확하게 설명하세요."
           },
           {
             role: "user",
@@ -367,9 +670,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
       throw new Error(`OpenAI-compatible request failed: ${response.status}`);
     }
 
-    const json = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
+    const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
     return json.choices?.[0]?.message?.content?.trim() ?? "";
   }
 
@@ -379,7 +680,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
     }
 
     try {
-      return await this.completion(`한국 거주 스윙 투자자 기준으로 현재 미국 시장 레짐을 3~4문장으로 요약해 주세요. 레짐: ${input.market.regime}. 상위 섹터: ${input.sectors.slice(0, 4).map((item) => `${item.sector} ${item.score}`).join(", ")}. 핵심 헤드라인: ${input.news.slice(0, 4).map((item) => item.title).join(" | ")}`);
+      return await this.completion(`한국 거주 스윙 투자자 기준으로 현재 미국 시장 레짐을 3문장으로 요약해 주세요. 레짐: ${input.market.regime}. 상위 섹터: ${input.sectors.slice(0, 4).map((item) => `${item.sector} ${item.score}`).join(", ")}. 주요 뉴스: ${input.news.slice(0, 4).map((item) => item.title).join(" | ")}`);
     } catch {
       return super.summarizeMarket(input);
     }
@@ -391,7 +692,7 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
     }
 
     try {
-      return await this.completion(`지금 강한 미국주식 테마를 3문장으로 요약해 주세요. 테마: ${input.themes.slice(0, 5).map((item) => `${item.name} 점수 ${item.score}`).join(", ")}. 뉴스: ${input.news.slice(0, 3).map((item) => item.title).join(" | ")}`);
+      return await this.completion(`현재 강한 미국주식 테마를 3문장으로 요약해 주세요. 테마: ${input.themes.slice(0, 5).map((item) => `${item.name} ${item.score}`).join(", ")}. 관련 뉴스: ${input.news.slice(0, 3).map((item) => item.title).join(" | ")}`);
     } catch {
       return super.summarizeThemes(input);
     }
@@ -403,15 +704,18 @@ export class OpenAICompatibleProvider extends TemplateAIProvider implements AIPr
     }
 
     try {
-      const response = await this.completion(`${input.candidate.profile.ticker}에 대해 상승 요인, 하락 요인, 다음 체크포인트를 아주 짧은 문장으로 각각 하나씩 작성해 주세요. 세 문장은 || 로 구분하세요. 점수 ${input.candidate.score.finalScore.toFixed(1)}, 라벨 ${input.candidate.label}, 테마 ${input.candidate.profile.themes.join(", ")}.`);
+      const response = await this.completion(
+        `${input.candidate.profile.ticker}에 대해 긍정 요인 1개, 부정 요인 1개, 다음 체크포인트 1개를 짧게 써 주세요. 형식은 '긍정 || 부정 || 체크포인트'로 주세요. 점수 ${input.candidate.score.finalScore.toFixed(1)}, 라벨 ${input.candidate.label}, 테마 ${input.candidate.profile.themes.join(", ")}`
+      );
       const [bullish, bearish, next] = response.split("||").map((item) => item.trim());
       return {
-        bullishFactors: [bullish || `${input.candidate.profile.ticker}는 현재 섹터 강도의 지원을 받고 있습니다.`],
-        bearishFactors: [bearish || "지금 구간에서는 리스크 관리가 여전히 중요합니다."],
-        whatToWatchNext: [next || "다음 트리거 가격 돌파 여부를 확인하세요."]
+        bullishFactors: [bullish || `${input.candidate.profile.ticker}는 현재 테마 강도에서 완전히 이탈하지 않았습니다.`],
+        bearishFactors: [bearish || "단기 이벤트와 변동성 관리가 중요합니다."],
+        whatToWatchNext: [next || "다음 유효 가격대와 거래량 회복 여부를 확인하세요."]
       };
     } catch {
       return super.summarizeStock(input);
     }
   }
 }
+

@@ -4,7 +4,7 @@
 
   constructor() {
     this.apiKey = process.env.FMP_API_KEY ?? "";
-    this.baseUrl = process.env.FMP_BASE_URL ?? "https://financialmodelingprep.com/api/v3";
+    this.baseUrl = process.env.FMP_BASE_URL ?? "https://financialmodelingprep.com/stable";
   }
 
   get configured(): boolean {
@@ -19,9 +19,8 @@
       }
     });
 
-    const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/${path}?${searchParams.toString()}`, {
-      cache: "no-store"
-    });
+    const url = `${this.baseUrl.replace(/\/$/, "")}/${path}?${searchParams.toString()}`;
+    const response = await fetch(url, { cache: "no-store" });
 
     if (!response.ok) {
       throw new Error(`FMP request failed for ${path}: ${response.status}`);

@@ -80,6 +80,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
       const volatilityPass = candidate.technicals.atrPct <= filters.volatilityMaxPct;
       const earningsPass =
         !filters.excludeEarningsWindow ||
+        !candidate.earnings.nextEarningsDate ||
         new Date(candidate.earnings.nextEarningsDate).getTime() - Date.now() > 7 * 86400000;
 
       return searchPass && marketCapPass && volumePass && sectorPass && volatilityPass && earningsPass;
@@ -564,4 +565,6 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
     </main>
   );
 }
+
+
 

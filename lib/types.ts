@@ -16,6 +16,7 @@ export type UniverseKey =
   | "magnificent7"
   | "semiconductors"
   | "defense"
+  | "powerInfrastructure"
   | "custom";
 
 export interface AppStatus {
@@ -85,7 +86,7 @@ export interface NewsItem {
 
 export interface EarningsSummary {
   lastReportDate: string;
-  nextEarningsDate: string;
+  nextEarningsDate: string | null;
   revenueGrowthPct: number;
   epsSurprisePct: number;
   guidance: GuidanceTone;
@@ -200,12 +201,7 @@ export interface RiskAlert {
   title: string;
   reason: string;
   severity: AlertSeverity;
-  category:
-    | "earnings"
-    | "volatility"
-    | "overextended"
-    | "headline"
-    | "macro";
+  category: "earnings" | "volatility" | "overextended" | "headline" | "macro";
 }
 
 export interface WatchlistSnapshotItem {

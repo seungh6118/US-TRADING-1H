@@ -1,4 +1,4 @@
-import { AppMode, DashboardFilters, UniverseKey } from "@/lib/types";
+﻿import { AppMode, DashboardFilters, UniverseKey } from "@/lib/types";
 
 export const scoreWeights = {
   macroFit: 0.15,
@@ -14,6 +14,7 @@ export const appConfig = {
   requestedMode: (process.env.APP_DATA_MODE ?? "mock") as AppMode,
   defaultUniverse: (process.env.APP_DEFAULT_UNIVERSE ?? "sp500") as UniverseKey,
   timezone: process.env.APP_TIMEZONE ?? "Asia/Seoul",
+  strictLiveMode: process.env.APP_STRICT_LIVE_MODE !== "false",
   customTickers:
     process.env.APP_CUSTOM_TICKERS?.split(",")
       .map((ticker) => ticker.trim().toUpperCase())

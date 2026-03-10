@@ -61,7 +61,7 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
           </div>
           <div className="panel-muted p-3">
             <p className="label">다음 실적</p>
-            <p className="mt-1 text-xl font-semibold">{formatDate(candidate.earnings.nextEarningsDate)}</p>
+            <p className="mt-1 text-xl font-semibold">{candidate.earnings.nextEarningsDate ? formatDate(candidate.earnings.nextEarningsDate) : "미정"}</p>
             <p className="text-xs text-slate-400">{candidate.earnings.summary}</p>
           </div>
         </div>
@@ -232,4 +232,5 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
     </main>
   );
 }
+
 

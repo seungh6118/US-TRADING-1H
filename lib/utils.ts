@@ -1,4 +1,4 @@
-import { appConfig } from "@/lib/config";
+﻿import { appConfig } from "@/lib/config";
 
 export function clamp(value: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, value));
@@ -60,7 +60,11 @@ export function getLocalIsoDate(): string {
     .replaceAll("/", "-");
 }
 
-export function daysUntil(date: string): number {
+export function daysUntil(date: string | null): number {
+  if (!date) {
+    return 999;
+  }
+
   const target = new Date(date).getTime();
   const now = new Date().getTime();
   return Math.ceil((target - now) / (1000 * 60 * 60 * 24));

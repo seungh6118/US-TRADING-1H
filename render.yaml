@@ -15,6 +15,8 @@ services:
         value: 0.0.0.0
       - key: APP_DATA_MODE
         value: mock
+      - key: APP_STRICT_LIVE_MODE
+        value: "true"
       - key: APP_DEFAULT_UNIVERSE
         value: sp500
       - key: APP_TIMEZONE
@@ -24,4 +26,4 @@ services:
       - key: OPENAI_MODEL
         value: gpt-4o-mini
       - key: FMP_BASE_URL
-        value: https://financialmodelingprep.com/api/v3
+        value: https://financialmodelingprep.com/stable

@@ -4,7 +4,7 @@ export const universeDefinitions: UniverseDefinition[] = [
   {
     key: "sp500",
     label: "S&P500 핵심",
-    description: "가장 기본으로 보기 좋은 미국 대형주 감시 유니버스입니다.",
+    description: "미국 대형주 핵심 감시 유니버스입니다.",
     tickers: [
       "NVDA",
       "MSFT",
@@ -51,20 +51,26 @@ export const universeDefinitions: UniverseDefinition[] = [
   {
     key: "magnificent7",
     label: "매그니피센트 7",
-    description: "메가캡 리더만 빠르게 체크하고 싶을 때 쓰는 묶음입니다.",
+    description: "메가캡 리더만 빠르게 체크하는 유니버스입니다.",
     tickers: ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
   },
   {
     key: "semiconductors",
     label: "반도체",
-    description: "AI와 데이터센터 관련 반도체 핵심 종목만 모아봅니다.",
-    tickers: ["NVDA", "AMD", "AVGO", "SMCI"]
+    description: "AI와 데이터센터 핵심 반도체 종목을 집중 추적합니다.",
+    tickers: ["NVDA", "AMD", "AVGO", "SMCI", "ANET"]
   },
   {
     key: "defense",
     label: "방산",
-    description: "방산과 안보 관련 핵심 종목만 압축해 보는 유니버스입니다.",
-    tickers: ["RTX", "LMT", "PLTR"]
+    description: "방산과 안보 관련 핵심 종목 유니버스입니다.",
+    tickers: ["RTX", "LMT", "PLTR", "NOC"]
+  },
+  {
+    key: "powerInfrastructure",
+    label: "전력 인프라",
+    description: "데이터센터 전력, 발전, 송배전, 원자력 관련 종목을 함께 추적합니다.",
+    tickers: ["VRT", "ETN", "GEV", "CEG", "BE", "VST", "NRG", "TLN", "BWXT"]
   },
   {
     key: "custom",
@@ -75,13 +81,13 @@ export const universeDefinitions: UniverseDefinition[] = [
 ];
 
 export const themeKeywords: Record<string, string[]> = {
-  AI: ["AI", "artificial intelligence", "accelerator", "GPU", "inference"],
-  Semiconductor: ["semiconductor", "chip", "fabless", "GPU"],
-  Cloud: ["cloud", "hyperscaler", "software infrastructure"],
-  "Power Infrastructure": ["power", "grid", "electrification", "transformer"],
-  Nuclear: ["nuclear", "uranium", "reactor"],
-  Defense: ["defense", "missile", "aerospace"],
-  Cybersecurity: ["security", "cyber", "identity"],
-  Robotics: ["robotics", "automation", "industrial software"],
-  "Obesity Treatment": ["obesity", "GLP-1", "weight loss"]
+  AI: ["AI", "artificial intelligence", "accelerator", "GPU", "inference", "model"],
+  Semiconductor: ["semiconductor", "chip", "fabless", "GPU", "ASIC"],
+  Cloud: ["cloud", "hyperscaler", "software infrastructure", "data center"],
+  "Power Infrastructure": ["power", "grid", "electrification", "transformer", "fuel cell", "generation"],
+  Nuclear: ["nuclear", "uranium", "reactor", "small modular reactor"],
+  Defense: ["defense", "missile", "aerospace", "military"],
+  Cybersecurity: ["security", "cyber", "identity", "endpoint", "network security"],
+  Robotics: ["robotics", "automation", "industrial software", "autonomy"],
+  "Obesity Treatment": ["obesity", "GLP-1", "weight loss", "diabetes"]
 };
