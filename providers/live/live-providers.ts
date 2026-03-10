@@ -99,6 +99,11 @@ const macroSeriesDefinitions = [
 const positiveNewsTerms = ["beat", "raised", "record", "growth", "demand", "contract", "wins", "backlog", "expands", "strong"];
 const negativeNewsTerms = ["miss", "cut", "probe", "delay", "lawsuit", "downgrade", "weak", "fall", "dilution", "risk"];
 
+function logLiveWarning(scope: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[live-provider:${scope}] ${message}`);
+}
+
 function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -343,8 +348,22 @@ export class LiveMarketDataProvider implements MarketDataProvider {
     macroAssets: InstrumentSnapshot[];
     economicEvents: EconomicEvent[];
   }> {
-    const seriesSnapshots = await Promise.all(macroSeriesDefinitions.map((item) => buildSeriesSnapshot(this.client, item.symbol, item.name)));
-    const treasurySnapshots = await fetchTreasurySnapshots(this.client);
+    const seriesSnapshots = (
+      await Promise.allSettled(macroSeriesDefinitions.map((item) => buildSeriesSnapshot(this.client, item.symbol, item.name)))
+    )
+      .map((result, index) => {
+        if (result.status === "fulfilled") {
+          return result.value;
+        }
+
+        logLiveWarning(`macro:${macroSeriesDefinitions[index].symbol}`, result.reason);
+        return null;
+      })
+      .filter((item): item is InstrumentSnapshot => Boolean(item));
+    const treasurySnapshots = await fetchTreasurySnapshots(this.client).catch((error) => {
+      logLiveWarning("macro:treasury-rates", error);
+      return [];
+    });
 
     const spyLike = seriesSnapshots.find((item) => item.symbol === "^GSPC");
     const qqqLike = seriesSnapshots.find((item) => item.symbol === "^NDX");
@@ -368,7 +387,10 @@ export class LiveMarketDataProvider implements MarketDataProvider {
       macroAssets: [...treasurySnapshots, vix, dxy, seriesSnapshots.find((item) => item.symbol === "CLUSD"), seriesSnapshots.find((item) => item.symbol === "GCUSD")].filter(
         (item): item is InstrumentSnapshot => Boolean(item)
       ),
-      economicEvents: await new LiveCalendarProvider(this.client).getEconomicEvents()
+      economicEvents: await new LiveCalendarProvider(this.client).getEconomicEvents().catch((error) => {
+        logLiveWarning("macro:economic-calendar", error);
+        return [];
+      })
     };
   }
 
@@ -380,8 +402,11 @@ export class LiveMarketDataProvider implements MarketDataProvider {
     return [];
   }
 
-  async getStockSnapshots(tickers: string[]) {
-    const quotes = await this.client.request<FmpQuote[]>("batch-quote", { symbols: tickers.join(",") });
+  async getStockSnapshots(tickers: string[]): Promise<StockSnapshot[]> {
+    const quotes = await this.client.request<FmpQuote[]>("batch-quote", { symbols: tickers.join(",") }).catch((error) => {
+      logLiveWarning("stocks:batch-quote", error);
+      return [];
+    });
     const quoteMap = new Map((quotes ?? []).map((item) => [item.symbol?.toUpperCase() ?? "", item]));
 
     const today = new Date();
@@ -391,36 +416,47 @@ export class LiveMarketDataProvider implements MarketDataProvider {
     toDate.setDate(today.getDate() + 120);
 
     const [allNews, earningsCalendar] = await Promise.all([
-      this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) }),
-      this.client.request<FmpEarningsCalendar[]>("earnings-calendar", {
-        from: fromDate.toISOString().slice(0, 10),
-        to: toDate.toISOString().slice(0, 10)
-      })
+      this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) }).catch((error) => {
+        logLiveWarning("stocks:news", error);
+        return [];
+      }),
+      this.client
+        .request<FmpEarningsCalendar[]>("earnings-calendar", {
+          from: fromDate.toISOString().slice(0, 10),
+          to: toDate.toISOString().slice(0, 10)
+        })
+        .catch((error) => {
+          logLiveWarning("stocks:earnings-calendar", error);
+          return [];
+        })
     ]);
 
-    return Promise.all(
+    const settledStocks = await Promise.allSettled(
       tickers.map(async (ticker) => {
         const upperTicker = ticker.toUpperCase();
         const quote = quoteMap.get(upperTicker);
         const [profileRows, historyRows, earningsSurprises] = await Promise.all([
           this.client.request<FmpProfile[]>("profile", { symbol: upperTicker }),
           this.client.request<FmpHistoricalResponse>("historical-price-eod/light", { symbol: upperTicker }),
-          this.client.request<FmpEarningsSurprise[]>("earnings-surprises", { symbol: upperTicker })
+          this.client.request<FmpEarningsSurprise[]>("earnings-surprises", { symbol: upperTicker }).catch((error) => {
+            logLiveWarning(`stocks:${upperTicker}:earnings-surprises`, error);
+            return [];
+          })
         ]);
 
         const profile = profileRows?.[0];
         const history = toPriceHistory(extractHistorical(historyRows)).slice(-260);
-        if (!quote || !profile || history.length < 200) {
+        if (!profile || history.length < 60) {
           throw new Error(`Insufficient live data for ${upperTicker}`);
         }
 
-        const currentPrice = toNumber(quote.price) ?? history.at(-1)?.close ?? 0;
+        const currentPrice = toNumber(quote?.price) ?? toNumber(profile.price) ?? history.at(-1)?.close ?? 0;
         const latestHistoryPrice = history.at(-1)?.close ?? currentPrice;
         if (latestHistoryPrice !== currentPrice) {
           history[history.length - 1] = {
             ...history[history.length - 1],
             close: currentPrice,
-            volume: Math.max(history.at(-1)?.volume ?? 0, toNumber(quote.volume) ?? history.at(-1)?.volume ?? 0)
+            volume: Math.max(history.at(-1)?.volume ?? 0, toNumber(quote?.volume) ?? history.at(-1)?.volume ?? 0)
           };
         }
 
@@ -465,17 +501,17 @@ export class LiveMarketDataProvider implements MarketDataProvider {
           quote: {
             ticker: upperTicker,
             price: currentPrice,
-            change1dPct: normalizePercent(quote.changesPercentage),
+            change1dPct: quote ? normalizePercent(quote.changesPercentage) : computePctChange(currentPrice, history.at(-2)?.close ?? currentPrice),
             change5dPct: computePctChange(currentPrice, base5),
             change20dPct: computePctChange(currentPrice, base20),
             change60dPct: computePctChange(currentPrice, base60),
-            volume: toNumber(quote.volume) ?? history.at(-1)?.volume ?? 0
+            volume: toNumber(quote?.volume) ?? history.at(-1)?.volume ?? 0
           },
           fundamentals: {
-            marketCapBn: (toNumber(quote.marketCap) ?? toNumber(profile.mktCap) ?? 0) / 1_000_000_000,
-            averageDollarVolumeM: ((toNumber(quote.avgVolume) ?? average(history.slice(-20).map((point) => point.volume))) * currentPrice) / 1_000_000,
+            marketCapBn: (toNumber(quote?.marketCap) ?? toNumber(profile.mktCap) ?? 0) / 1_000_000_000,
+            averageDollarVolumeM: ((toNumber(quote?.avgVolume) ?? average(history.slice(-20).map((point) => point.volume))) * currentPrice) / 1_000_000,
             beta: toNumber(profile.beta) ?? 1,
-            pe: toNumber(quote.pe),
+            pe: toNumber(quote?.pe),
             priceToSales: null
           },
           technicals,
@@ -517,6 +553,18 @@ export class LiveMarketDataProvider implements MarketDataProvider {
         } satisfies StockSnapshot;
       })
     );
+
+    const snapshots: Array<StockSnapshot | null> = settledStocks
+      .map((result, index) => {
+        if (result.status === "fulfilled") {
+          return result.value;
+        }
+
+        logLiveWarning(`stocks:${tickers[index].toUpperCase()}`, result.reason);
+        return null;
+      });
+
+    return snapshots.filter((item): item is StockSnapshot => item !== null);
   }
 }
 
@@ -524,7 +572,10 @@ export class LiveNewsProvider implements NewsProvider {
   constructor(private readonly client: FmpClient) {}
 
   async getMarketNews() {
-    const news = await this.client.request<FmpNews[]>("news/stock-latest", { limit: 12 });
+    const news = await this.client.request<FmpNews[]>("news/stock-latest", { limit: 12 }).catch((error) => {
+      logLiveWarning("news:market", error);
+      return [];
+    });
     return (news ?? []).slice(0, 12).map((item, index) => ({
       id: `market-live-${index}`,
       title: item.title ?? "실시간 시장 뉴스",
@@ -539,7 +590,10 @@ export class LiveNewsProvider implements NewsProvider {
   }
 
   async getTickerNews(tickers: string[]) {
-    const news = await this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) });
+    const news = await this.client.request<FmpNews[]>("news/stock", { symbols: tickers.join(","), limit: Math.max(60, tickers.length * 4) }).catch((error) => {
+      logLiveWarning("news:ticker", error);
+      return [];
+    });
     const result: Record<string, NewsItem[]> = {};
     tickers.forEach((ticker) => {
       const upperTicker = ticker.toUpperCase();
@@ -555,7 +609,10 @@ export class LiveFundamentalsProvider implements FundamentalsProvider {
   async getStockProfiles(tickers: string[]): Promise<Record<string, StockProfile>> {
     const entries = await Promise.all(
       tickers.map(async (ticker) => {
-        const profileRows = await this.client.request<FmpProfile[]>("profile", { symbol: ticker.toUpperCase() });
+        const profileRows = await this.client.request<FmpProfile[]>("profile", { symbol: ticker.toUpperCase() }).catch((error) => {
+          logLiveWarning(`fundamentals:${ticker.toUpperCase()}:profile`, error);
+          return [];
+        });
         const profile = profileRows?.[0];
         if (!profile) {
           return null;
@@ -585,7 +642,10 @@ export class LiveFundamentalsProvider implements FundamentalsProvider {
   async getUpcomingEvents(tickers: string[]): Promise<Record<string, StockEvent[]>> {
     const from = new Date().toISOString().slice(0, 10);
     const to = new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10);
-    const calendar = await this.client.request<FmpEarningsCalendar[]>("earnings-calendar", { from, to });
+    const calendar = await this.client.request<FmpEarningsCalendar[]>("earnings-calendar", { from, to }).catch((error) => {
+      logLiveWarning("fundamentals:earnings-calendar", error);
+      return [];
+    });
     const result: Record<string, StockEvent[]> = {};
 
     tickers.forEach((ticker) => {
@@ -618,7 +678,10 @@ export class LiveCalendarProvider implements CalendarProvider {
   async getEconomicEvents() {
     const from = new Date().toISOString().slice(0, 10);
     const to = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-    const rows = await this.client.request<FmpEconomicCalendar[]>("economic-calendar", { from, to });
+    const rows = await this.client.request<FmpEconomicCalendar[]>("economic-calendar", { from, to }).catch((error) => {
+      logLiveWarning("calendar:economic-calendar", error);
+      return [];
+    });
 
     return (rows ?? [])
       .filter((item) => (item.country ?? "").toUpperCase() === "US")

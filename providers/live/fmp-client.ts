@@ -23,7 +23,9 @@
     const response = await fetch(url, { cache: "no-store" });
 
     if (!response.ok) {
-      throw new Error(`FMP request failed for ${path}: ${response.status}`);
+      const body = await response.text();
+      const detail = body.trim().slice(0, 240);
+      throw new Error(`FMP request failed for ${path}: ${response.status}${detail ? ` - ${detail}` : ""}`);
     }
 
     return (await response.json()) as T;

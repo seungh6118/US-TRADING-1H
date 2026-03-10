@@ -15,6 +15,6 @@ export async function GET(_request: Request, { params }: { params: { ticker: str
       return NextResponse.json({ error: error.message }, { status: 503 });
     }
 
-    throw error;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unexpected server error" }, { status: 500 });
   }
 }

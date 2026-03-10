@@ -14,6 +14,11 @@ export default async function HomePage() {
       return <LiveRequiredPanel title="실시간 데이터 연결이 아직 준비되지 않았습니다." detail={error.message} />;
     }
 
-    throw error;
+    return (
+      <LiveRequiredPanel
+        title="실시간 데이터를 불러오는 중 오류가 발생했습니다."
+        detail={error instanceof Error ? error.message : "서버에서 예상하지 못한 오류가 발생했습니다."}
+      />
+    );
   }
 }
