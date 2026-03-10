@@ -16,6 +16,7 @@ import {
 } from "@/lib/types";
 import { getLocalizedStockDescription } from "@/lib/localization";
 import { average, movingAverage } from "@/lib/utils";
+import { fetchYahooQuotePageSnapshot } from "@/providers/free/yahoo-quote-page";
 import { fetchYahooHistory } from "@/providers/live/yahoo-chart";
 import { getAllMockStockSnapshots } from "@/providers/mock/mock-data";
 
@@ -218,17 +219,30 @@ function buildMetadata(ticker: string): FreeMetadata {
 }
 
 function buildLimitedSummary(ticker: string) {
-  return `${ticker}는 Yahoo 무료 가격 데이터를 바탕으로 계산하며, 뉴스와 실적 해석은 제한적으로 반영됩니다.`;
+  return `${ticker}는 Yahoo 공개 가격 데이터를 기반으로 계산하며, 뉴스와 실적 해석은 제한적으로 반영합니다.`;
 }
 
 export class YahooFreeMarketDataProvider implements MarketDataProvider {
-  async getMacroSnapshot(): Promise<Omit<{ asOf: string; regime: MarketRegime; indices: InstrumentSnapshot[]; macroAssets: InstrumentSnapshot[]; economicEvents: EconomicEvent[]; aiSummary: string }, "aiSummary">> {
+  async getMacroSnapshot(): Promise<
+    Omit<{
+      asOf: string;
+      regime: MarketRegime;
+      indices: InstrumentSnapshot[];
+      macroAssets: InstrumentSnapshot[];
+      economicEvents: EconomicEvent[];
+      aiSummary: string;
+    }, "aiSummary">
+  > {
     const histories = await Promise.allSettled(
       macroDefinitions.map(async (item) => ({ item, history: await fetchYahooHistory(item.symbol, "6mo", "1d") }))
     );
 
     const snapshots = histories
-      .map((result) => (result.status === "fulfilled" && result.value.history.length >= 6 ? buildInstrumentSnapshot(result.value.item.symbol, result.value.item.name, result.value.history) : null))
+      .map((result) =>
+        result.status === "fulfilled" && result.value.history.length >= 6
+          ? buildInstrumentSnapshot(result.value.item.symbol, result.value.item.name, result.value.history)
+          : null
+      )
       .filter((item): item is InstrumentSnapshot => item !== null);
 
     const spy = snapshots.find((item) => item.symbol === "^GSPC");
@@ -267,21 +281,31 @@ export class YahooFreeMarketDataProvider implements MarketDataProvider {
     const results = await Promise.allSettled(
       tickers.map(async (ticker) => {
         const meta = buildMetadata(ticker);
-        const history = await fetchYahooHistory(meta.ticker, "1y", "1d");
+        const [history, quotePage] = await Promise.all([
+          fetchYahooHistory(meta.ticker, "1y", "1d"),
+          fetchYahooQuotePageSnapshot(meta.ticker).catch(() => null)
+        ]);
+
         if (history.length < 20) {
           throw new Error(`Insufficient Yahoo history for ${meta.ticker}`);
         }
 
         const price = history.at(-1)?.close ?? 0;
+        const averagePrice20 = average(history.slice(-20).map((point) => point.close)) || price;
         const base5 = history.at(-6)?.close ?? price;
         const base20 = history.at(-21)?.close ?? price;
         const base60 = history.at(-61)?.close ?? price;
         const technicals = deriveTechnicals(history, price);
+        const companyName = quotePage?.companyName ?? meta.companyName;
+        const averageDollarVolumeM =
+          quotePage?.averageVolumeShares && averagePrice20 > 0
+            ? (quotePage.averageVolumeShares * averagePrice20) / 1_000_000
+            : ((average(history.slice(-20).map((point) => point.volume)) || 0) * averagePrice20) / 1_000_000;
 
         return {
           profile: {
             ticker: meta.ticker,
-            companyName: meta.companyName,
+            companyName,
             sector: meta.sector,
             industry: meta.industry,
             themes: meta.themes,
@@ -297,21 +321,27 @@ export class YahooFreeMarketDataProvider implements MarketDataProvider {
             volume: history.at(-1)?.volume ?? 0
           },
           fundamentals: {
-            marketCapBn: meta.marketCapBn,
-            averageDollarVolumeM: ((average(history.slice(-20).map((point) => point.volume)) || 0) * price) / 1_000_000,
-            beta: meta.beta,
-            pe: meta.pe,
+            marketCapBn: quotePage?.marketCapBn ?? meta.marketCapBn,
+            averageDollarVolumeM,
+            beta: quotePage?.beta ?? meta.beta,
+            pe: quotePage?.trailingPe ?? meta.pe,
             priceToSales: null
           },
           technicals,
           earnings: {
             lastReportDate: new Date(Date.now() - 45 * 86400000).toISOString(),
-            nextEarningsDate: null,
+            nextEarningsDate: quotePage?.nextEarningsDate ?? null,
             revenueGrowthPct: 0,
             epsSurprisePct: 0,
             guidance: "inline",
             epsRevisionScore: 50,
-            summary: "Yahoo 무료 모드에서는 실적과 EPS 수정치 데이터가 제한적입니다."
+            summary: quotePage?.nextEarningsDate
+              ? `Yahoo 공개 페이지 기준 다음 실적 예정일은 ${new Date(quotePage.nextEarningsDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric"
+                })} 입니다.`
+              : "Yahoo 무료 모드에서는 실적 리비전과 서프라이즈 데이터가 제한적입니다."
           },
           priceHistory: history,
           recentNews: [],

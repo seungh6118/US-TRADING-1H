@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { PriceChart } from "@/components/price-chart";
 import { Badge, Panel, ScoreBadge } from "@/components/ui";
 import { displayCandidateLabel, displaySector } from "@/lib/localization";
@@ -13,6 +13,38 @@ function labelTone(label: StockDetailData["candidate"]["label"]) {
     return "caution" as const;
   }
   return "positive" as const;
+}
+
+function formatMetric(value: number | null, digits = 1, suffix = "") {
+  if (value === null || Number.isNaN(value)) {
+    return "N/A";
+  }
+
+  return `${value.toFixed(digits)}${suffix}`;
+}
+
+function formatMarketCapBn(value: number) {
+  if (!value || Number.isNaN(value)) {
+    return "N/A";
+  }
+
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)}T`;
+  }
+
+  return `${value.toFixed(value >= 100 ? 0 : 1)}B`;
+}
+
+function formatAverageDollarVolumeM(value: number) {
+  if (!value || Number.isNaN(value)) {
+    return "N/A";
+  }
+
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)}B`;
+  }
+
+  return `${value.toFixed(value >= 100 ? 0 : 1)}M`;
 }
 
 export function StockDetailView({ data }: { data: StockDetailData }) {
@@ -47,12 +79,16 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
           <div className="panel-muted p-3">
             <p className="label">{isMock ? "샘플 현재가" : "현재가"}</p>
             <p className="mt-1 text-xl font-semibold">{formatCurrency(candidate.quote.price)}</p>
-            <p className="text-xs text-slate-400">{isMock ? "샘플 1일" : "1일"} {formatPercent(candidate.quote.change1dPct)}</p>
+            <p className="text-xs text-slate-400">
+              {isMock ? "샘플 1일" : "1일"} {formatPercent(candidate.quote.change1dPct)}
+            </p>
           </div>
           <div className="panel-muted p-3">
             <p className="label">{isMock ? "샘플 52주 고점" : "52주 고점"}</p>
             <p className="mt-1 text-xl font-semibold">{formatCurrency(candidate.technicals.high52w)}</p>
-            <p className="text-xs text-slate-400">{isMock ? "샘플 기준" : "고점 대비"} {candidate.technicals.distanceFromHighPct.toFixed(1)}% 아래</p>
+            <p className="text-xs text-slate-400">
+              {isMock ? "샘플 기준" : "고점 대비"} {candidate.technicals.distanceFromHighPct.toFixed(1)}% 아래
+            </p>
           </div>
           <div className="panel-muted p-3">
             <p className="label">{isMock ? "샘플 상대강도" : "상대강도"}</p>
@@ -155,6 +191,27 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
           </div>
         </Panel>
 
+        <Panel title="기본 펀더멘털" subtitle="필터와 밸류에이션 계산에 반영되는 기본 수치입니다.">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="panel-muted p-4">
+              <p className="label">시가총액</p>
+              <p className="mt-2 text-xl font-semibold">{formatMarketCapBn(candidate.fundamentals.marketCapBn)}</p>
+            </div>
+            <div className="panel-muted p-4">
+              <p className="label">평균 거래대금</p>
+              <p className="mt-2 text-xl font-semibold">{formatAverageDollarVolumeM(candidate.fundamentals.averageDollarVolumeM)}</p>
+            </div>
+            <div className="panel-muted p-4">
+              <p className="label">Beta (5Y)</p>
+              <p className="mt-2 text-xl font-semibold">{formatMetric(candidate.fundamentals.beta, 2)}</p>
+            </div>
+            <div className="panel-muted p-4">
+              <p className="label">PER (TTM)</p>
+              <p className="mt-2 text-xl font-semibold">{formatMetric(candidate.fundamentals.pe, 2)}</p>
+            </div>
+          </div>
+        </Panel>
+
         <Panel title="Bullish / Bearish / Next" subtitle="AI는 점수 설명 보강에만 사용하고, 랭킹 자체는 점수 엔진이 결정합니다.">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-4">
@@ -232,5 +289,3 @@ export function StockDetailView({ data }: { data: StockDetailData }) {
     </main>
   );
 }
-
-
