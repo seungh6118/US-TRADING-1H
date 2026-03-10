@@ -17,6 +17,7 @@ import { getLocalizedStockDescription, getLocalizedStockEventNote } from "@/lib/
 import { average, clamp, getDateOffset, movingAverage } from "@/lib/utils";
 import type { MarketRegime } from "@/lib/types";
 import { FmpClient } from "@/providers/live/fmp-client";
+import { fetchYahooHistory } from "@/providers/live/yahoo-chart";
 import { TemplateAIProvider } from "@/providers/mock/mock-providers";
 
 type FmpQuote = {
@@ -87,13 +88,13 @@ type FmpEconomicCalendar = {
 };
 
 const macroSeriesDefinitions = [
-  { symbol: "^GSPC", name: "S&P 500" },
-  { symbol: "^NDX", name: "Nasdaq 100" },
-  { symbol: "^RUT", name: "Russell 2000" },
-  { symbol: "^VIX", name: "VIX" },
-  { symbol: "DX-Y.NYB", name: "DXY" },
-  { symbol: "CLUSD", name: "WTI" },
-  { symbol: "GCUSD", name: "Gold" }
+  { symbol: "^GSPC", historySymbol: "^GSPC", name: "S&P 500" },
+  { symbol: "^NDX", historySymbol: "^NDX", name: "Nasdaq 100" },
+  { symbol: "^RUT", historySymbol: "^RUT", name: "Russell 2000" },
+  { symbol: "^VIX", historySymbol: "^VIX", name: "VIX" },
+  { symbol: "DX-Y.NYB", historySymbol: "DX-Y.NYB", name: "DXY" },
+  { symbol: "CL=F", historySymbol: "CL=F", name: "WTI" },
+  { symbol: "GC=F", historySymbol: "GC=F", name: "Gold" }
 ] as const;
 
 const positiveNewsTerms = ["beat", "raised", "record", "growth", "demand", "contract", "wins", "backlog", "expands", "strong"];
@@ -278,13 +279,12 @@ function eventImpactToLevel(raw: string | undefined): EconomicEvent["impact"] {
   return "low";
 }
 
-async function fetchSeries(client: FmpClient, symbol: string) {
-  const response = await client.request<FmpHistoricalResponse>("historical-price-eod/light", { symbol });
-  return toPriceHistory(extractHistorical(response)).slice(-40);
+async function fetchSeries(symbol: string) {
+  return (await fetchYahooHistory(symbol, "6mo", "1d")).slice(-40);
 }
 
-async function buildSeriesSnapshot(client: FmpClient, symbol: string, name: string): Promise<InstrumentSnapshot> {
-  const history = await fetchSeries(client, symbol);
+async function buildSeriesSnapshot(symbol: string, name: string): Promise<InstrumentSnapshot> {
+  const history = await fetchSeries(symbol);
   if (history.length < 6) {
     throw new Error(`Insufficient history for ${symbol}`);
   }
@@ -348,8 +348,8 @@ export class LiveMarketDataProvider implements MarketDataProvider {
     macroAssets: InstrumentSnapshot[];
     economicEvents: EconomicEvent[];
   }> {
-    const seriesSnapshots = (
-      await Promise.allSettled(macroSeriesDefinitions.map((item) => buildSeriesSnapshot(this.client, item.symbol, item.name)))
+    const seriesSnapshotResults: Array<InstrumentSnapshot | null> = (
+      await Promise.allSettled(macroSeriesDefinitions.map((item) => buildSeriesSnapshot(item.historySymbol, item.name).then((snapshot) => ({ ...snapshot, symbol: item.symbol }))))
     )
       .map((result, index) => {
         if (result.status === "fulfilled") {
@@ -358,8 +358,8 @@ export class LiveMarketDataProvider implements MarketDataProvider {
 
         logLiveWarning(`macro:${macroSeriesDefinitions[index].symbol}`, result.reason);
         return null;
-      })
-      .filter((item): item is InstrumentSnapshot => Boolean(item));
+      });
+    const seriesSnapshots = seriesSnapshotResults.filter((item): item is InstrumentSnapshot => item !== null);
     const treasurySnapshots = await fetchTreasurySnapshots(this.client).catch((error) => {
       logLiveWarning("macro:treasury-rates", error);
       return [];
@@ -437,7 +437,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
         const quote = quoteMap.get(upperTicker);
         const [profileRows, historyRows, earningsSurprises] = await Promise.all([
           this.client.request<FmpProfile[]>("profile", { symbol: upperTicker }),
-          this.client.request<FmpHistoricalResponse>("historical-price-eod/light", { symbol: upperTicker }),
+          fetchYahooHistory(upperTicker, "1y", "1d"),
           this.client.request<FmpEarningsSurprise[]>("earnings-surprises", { symbol: upperTicker }).catch((error) => {
             logLiveWarning(`stocks:${upperTicker}:earnings-surprises`, error);
             return [];
@@ -445,7 +445,7 @@ export class LiveMarketDataProvider implements MarketDataProvider {
         ]);
 
         const profile = profileRows?.[0];
-        const history = toPriceHistory(extractHistorical(historyRows)).slice(-260);
+        const history = historyRows.slice(-260);
         if (!profile || history.length < 60) {
           throw new Error(`Insufficient live data for ${upperTicker}`);
         }
