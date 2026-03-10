@@ -76,7 +76,13 @@ function scoreSectorStrength(stock: StockSnapshot, sectors: SectorPerformance[])
     return 50;
   }
 
-  return clamp(sector.score * 0.65 + sector.relativeStrength * 20 + sector.performance20dPct * 0.5 + sector.performance5dPct * 0.25);
+  return clamp(
+    sector.score * 0.45 +
+      sector.relativeStrength * 14 +
+      sector.performance1dPct * 4.5 +
+      sector.performance5dPct * 1.2 +
+      sector.performance20dPct * 0.2
+  );
 }
 
 function scoreThemeStrength(stock: StockSnapshot, themes: ThemeSnapshot[]): number {
@@ -137,8 +143,19 @@ function scorePriceStructure(stock: StockSnapshot): number {
 }
 
 function scoreFlowVolume(stock: StockSnapshot): number {
-  const acceleration = stock.quote.change5dPct - stock.quote.change20dPct / 4;
-  return clamp(42 + stock.technicals.volumeRatio * 24 + acceleration * 2.2 + stock.quote.change1dPct * 3.4);
+  let score = 38 + stock.technicals.volumeRatio * 18 + stock.quote.change1dPct * 5.5 + stock.quote.change5dPct * 2.4 + stock.quote.change20dPct * 0.4;
+
+  if (stock.quote.change1dPct > 0 && stock.technicals.volumeRatio >= 1.2) {
+    score += 8;
+  }
+  if (stock.quote.change1dPct < 0 && stock.quote.change5dPct < 0) {
+    score -= 14;
+  }
+  if (stock.quote.change1dPct < 0 && stock.technicals.volumeRatio > 1.15) {
+    score -= 4;
+  }
+
+  return clamp(score);
 }
 
 function scoreValuationSanity(stock: StockSnapshot): number {

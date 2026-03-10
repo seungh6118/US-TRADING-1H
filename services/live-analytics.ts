@@ -11,7 +11,7 @@ function weightedAverage(values: Array<{ value: number; weight: number }>) {
 }
 
 function scoreFromMomentum(change1dPct: number, change5dPct: number, change20dPct: number, change60dPct: number, excess20dPct: number) {
-  return clamp(50 + change1dPct * 4 + change5dPct * 1.8 + change20dPct * 0.9 + change60dPct * 0.15 + excess20dPct * 1.2);
+  return clamp(50 + change1dPct * 9 + change5dPct * 0.8 + change20dPct * 0.4 + change60dPct * 0.1 + excess20dPct * 0.7);
 }
 
 export function buildLiveSectorPerformance(stocks: StockSnapshot[]): SectorPerformance[] {
@@ -82,7 +82,7 @@ export function buildLiveThemeSnapshots(stocks: StockSnapshot[]): ThemeSnapshot[
       const avg1d = weightedAverage(members.map((stock) => ({ value: stock.quote.change1dPct, weight: stock.fundamentals.marketCapBn })));
       const avg5d = weightedAverage(members.map((stock) => ({ value: stock.quote.change5dPct, weight: stock.fundamentals.marketCapBn })));
       const avg20d = weightedAverage(members.map((stock) => ({ value: stock.quote.change20dPct, weight: stock.fundamentals.marketCapBn })));
-      const priceMomentumScore = clamp(50 + avg1d * 5 + avg5d * 2.1 + avg20d * 1.1);
+      const priceMomentumScore = clamp(50 + avg1d * 10 + avg5d * 1.2 + avg20d * 0.4);
       const mentionScore = clamp(newsMentions * 6, 0, 100);
       const score =
         newsMentions === 0
