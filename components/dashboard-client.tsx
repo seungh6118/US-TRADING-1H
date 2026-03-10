@@ -98,6 +98,16 @@ function shortTermPriority(candidate: DashboardData["candidates"][number]) {
   );
 }
 
+function buildShortTermScenarios(candidate: DashboardData["candidates"][number]) {
+  const continuationTarget = Math.max(candidate.keyLevels.breakout * 1.03, candidate.quote.price * 1.04);
+  const reboundTarget = Math.max(candidate.keyLevels.breakout, candidate.keyLevels.support * 1.03);
+
+  return {
+    primary: `${formatCurrency(candidate.keyLevels.breakout)} 상향 안착 시 ${formatCurrency(continuationTarget)} 재시도`,
+    alternate: `${formatCurrency(candidate.keyLevels.support)} 지지 확인 시 ${formatCurrency(reboundTarget)} 반등 시도, ${formatCurrency(candidate.keyLevels.invalidation)} 이탈 시 폐기`
+  };
+}
+
 export function DashboardClient({ initialData }: { initialData: DashboardData }) {
   const [data, setData] = useState(initialData);
   const [universe, setUniverse] = useState<UniverseKey>(initialData.universe);
@@ -236,17 +246,35 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
                   href={`/stocks/${candidate.profile.ticker}`}
                   className="block rounded-[20px] border border-white/8 bg-white/5 px-4 py-4 transition hover:border-cyan-400/30 hover:bg-white/10"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">우선순위 #{index + 1}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-xl font-semibold text-white">{candidate.profile.ticker}</span>
-                        <Badge tone={labelTone(candidate.label)}>{displayCandidateLabel(candidate.label)}</Badge>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">{candidate.narrative.whyWatch[0]}</p>
-                    </div>
-                    <ScoreBadge score={candidate.score.finalScore} />
-                  </div>
+                  {(() => {
+                    const scenarios = buildShortTermScenarios(candidate);
+
+                    return (
+                      <>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">우선순위 #{index + 1}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-xl font-semibold text-white">{candidate.profile.ticker}</span>
+                              <Badge tone={labelTone(candidate.label)}>{displayCandidateLabel(candidate.label)}</Badge>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-300">{candidate.narrative.whyWatch[0]}</p>
+                          </div>
+                          <ScoreBadge score={candidate.score.finalScore} />
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                          <div className="candidate-metric">
+                            <p className="label">시나리오 A</p>
+                            <p className="mt-1 text-xs leading-5 text-cyan-100">{scenarios.primary}</p>
+                          </div>
+                          <div className="candidate-metric">
+                            <p className="label">시나리오 B</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-300">{scenarios.alternate}</p>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </Link>
               ))}
             </div>

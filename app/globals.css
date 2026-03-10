@@ -148,33 +148,37 @@ textarea {
   }
 
   .heat-tile {
-    @apply flex flex-col rounded-[24px] border p-4 transition duration-200 hover:-translate-y-0.5;
+    @apply flex flex-col overflow-hidden rounded-[24px] border p-4 transition duration-200 hover:-translate-y-0.5;
     border-color: rgba(255, 255, 255, 0.08);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   .heat-tile-neutral {
-    background: linear-gradient(180deg, rgba(22, 39, 57, 0.95) 0%, rgba(14, 28, 42, 0.92) 100%);
+    background: linear-gradient(180deg, rgba(21, 39, 57, 0.97) 0%, rgba(13, 27, 41, 0.94) 100%);
   }
 
   .heat-tile-positive {
-    background: linear-gradient(180deg, rgba(18, 67, 63, 0.96) 0%, rgba(14, 44, 47, 0.94) 100%);
-    border-color: rgba(39, 200, 155, 0.28);
+    background: linear-gradient(180deg, rgba(11, 91, 79, 0.99) 0%, rgba(9, 54, 57, 0.97) 100%);
+    border-color: rgba(61, 232, 182, 0.34);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 12px 36px rgba(14, 116, 104, 0.2);
   }
 
   .heat-tile-positive-strong {
-    background: linear-gradient(180deg, rgba(21, 95, 82, 0.98) 0%, rgba(13, 57, 56, 0.96) 100%);
-    border-color: rgba(86, 221, 185, 0.34);
+    background: linear-gradient(180deg, rgba(7, 123, 99, 1) 0%, rgba(7, 73, 69, 0.98) 100%);
+    border-color: rgba(116, 255, 213, 0.42);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 40px rgba(16, 185, 129, 0.24);
   }
 
   .heat-tile-negative {
-    background: linear-gradient(180deg, rgba(76, 30, 41, 0.96) 0%, rgba(44, 19, 28, 0.94) 100%);
-    border-color: rgba(239, 111, 122, 0.24);
+    background: linear-gradient(180deg, rgba(92, 27, 45, 0.99) 0%, rgba(55, 16, 30, 0.97) 100%);
+    border-color: rgba(255, 122, 146, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 32px rgba(127, 29, 29, 0.18);
   }
 
   .heat-tile-negative-strong {
-    background: linear-gradient(180deg, rgba(103, 31, 45, 0.98) 0%, rgba(58, 19, 30, 0.96) 100%);
-    border-color: rgba(255, 138, 149, 0.32);
+    background: linear-gradient(180deg, rgba(121, 24, 48, 1) 0%, rgba(73, 15, 31, 0.98) 100%);
+    border-color: rgba(255, 157, 173, 0.4);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 14px 40px rgba(136, 19, 55, 0.22);
   }
 
   .candidate-row {
