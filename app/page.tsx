@@ -1,16 +1,9 @@
-import nextDynamic from "next/dynamic";
-import { DashboardLoadingShell } from "@/components/dashboard-loading-shell";
-
-const DashboardBootClient = nextDynamic(
-  () => import("@/components/dashboard-boot-client").then((module) => module.DashboardBootClient),
-  {
-    ssr: false,
-    loading: () => <DashboardLoadingShell />
-  }
-);
+import { OvernightDashboardClient } from "@/components/overnight-dashboard-client";
+import { getOvernightDashboardData } from "@/services/overnight-research-service";
 
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  return <DashboardBootClient />;
+  const data = getOvernightDashboardData();
+  return <OvernightDashboardClient initialData={data} />;
 }

@@ -1,234 +1,216 @@
-# 미국주식 AI 리서치 레이더
+# 미국주식 종가베팅 스코어링 웹앱
 
-한국 거주 사용자가 미국장을 계속 보지 못하는 상황을 전제로 만든, 스윙/포지션용 미국주식 후보 압축 웹앱입니다.
+장마감 10~15분 전에 미국주식 종목을 스캔해서, `종가매수 -> 익일 갭/장초반 청산` 전략에 적합한 후보를 점수화하는 AI 기반 웹앱입니다.
 
-핵심 원칙은 다음과 같습니다.
+## 1. System Architecture
 
-- 점수 계산은 결정론적 로직으로 수행
-- AI는 설명, 요약, 감시 포인트 정리에만 사용
-- `mock`는 데모 전용
-- `live`는 실제 시세와 뉴스 기반
-- `live`에서 API 키가 없으면 실시간 앱인 척 속이지 않고 명확히 설정 필요 상태를 표시
+### 목적
+- 오버나이트 종가베팅 후보를 빠르게 골라내기
+- 추천이 블랙박스로 보이지 않도록 세부 점수와 설명을 함께 보여주기
+- 추후 뉴스 고도화, 알림, 백테스트를 쉽게 붙일 수 있도록 모듈형으로 설계하기
 
-## 1. 아키텍처
+### 계층 구조
+- `app`
+  - Next.js App Router 화면과 API 라우트
+- `components`
+  - 대시보드, 상세, 설정 UI
+- `lib`
+  - 도메인 타입, 기본 설정값
+- `providers`
+  - 현재는 mock 공급원, 추후 실데이터 공급원 추가
+- `scoring`
+  - 종가베팅 전용 deterministic 점수 엔진
+- `services`
+  - 필터 적용, 후보 정렬, 상세 조회 조립
 
-- 프론트엔드: Next.js App Router, TypeScript, Tailwind CSS
-- 백엔드: Next.js 서버 컴포넌트 + `app/api` API routes
-- 저장소: 파일 기반 watchlist 저장 구조
-- 실시간 데이터: Financial Modeling Prep provider
-- AI: OpenAI-compatible abstraction layer
+### 현재 MVP 데이터 흐름
+1. mock 공급원이 종목 raw feature를 제공
+2. 점수 엔진이 5개 카테고리 점수를 계산
+3. 서비스 계층이 필터를 적용하고 TOP 10을 정렬
+4. 대시보드와 상세 화면이 점수 근거, 리스크, 시나리오를 렌더링
 
-흐름은 다음과 같습니다.
+### 추후 live 확장 포인트
+- 가격 / 거래량 / 애프터마켓: Polygon, IEX, Alpaca, TradingView-compatible feed 등
+- 뉴스 / 재료 분류: Benzinga, Finnhub, FMP, RavenPack류 공급원
+- 실적 일정: earnings calendar provider
+- 백테스트: 일별 snapshot 저장 후 익일 성과 비교
 
-1. `providers/factory.ts`가 `mock` 또는 `live` provider 세트를 선택합니다.
-2. `services/research-service.ts`가 시장, 종목, 뉴스, 캘린더를 모읍니다.
-3. `services/live-analytics.ts`가 live 모드에서 섹터 강도와 테마 모멘텀을 실제 종목 데이터로 계산합니다.
-4. `scoring/engine.ts`가 종목 점수를 결정론적으로 계산합니다.
-5. UI는 결과를 대시보드와 종목 상세 페이지로 설명 가능하게 렌더링합니다.
+## 2. Screen Structure And User Flow
 
-## 2. 폴더 구조
+### 대시보드
+- `종가베팅 후보 TOP 10`
+- `티커 / 회사명 / 현재가 / 점수 / 등급 / 포스트마켓 적합 여부`
+- `추천 이유 3개 / 리스크 3개`
+- `A급만 보기 / 포스트마켓 적합만 보기 / 검색`
+- `자동 새로고침`
 
-```text
-app/
-  api/
-  stocks/[ticker]/
-components/
-lib/
-providers/
-  live/
-  mock/
-services/
-scoring/
-db/
-api/
-render.yaml
-```
+### 상세 화면
+- 총점과 항목별 점수 바
+- 오늘 뉴스 요약
+- 장막판 수급 평가
+- 익일 리스크
+- 시나리오 A / B
+- 진입 아이디어
+- 청산 아이디어
 
-주요 역할:
+### 설정 화면
+- 최소 주가
+- 최소 거래량
+- 최소 거래대금
+- 최소 시가총액
+- 실적 제외 여부
+- 포스트마켓 허용 여부
+- 뉴스 / 섹터 가중치 배수
+- 카테고리별 가중치 수정
 
-- `app`: 페이지, 라우트, 서버 렌더링 진입점
-- `components`: 대시보드, 상세, 차트, 경고 패널 UI
-- `lib`: 타입, 설정, 상수, 로컬라이제이션, 유틸
-- `providers`: mock/live 데이터 공급자
-- `services`: 대시보드 조립, watchlist, live 분석
-- `scoring`: 종목 점수와 라벨 계산
+### 사용자 플로우
+1. 대시보드 진입
+2. 장마감 직전 필터 확인
+3. TOP 10 중 상위 후보 카드 훑기
+4. 관심 종목 상세 화면 진입
+5. 시나리오 A/B와 진입/청산 아이디어 확인
+6. 설정 화면에서 자기 기준에 맞게 필터와 가중치 조정
 
-## 3. 핵심 타입
+## 3. Data Model
 
-핵심 타입은 `lib/types.ts`에 있습니다.
+### 핵심 설정 모델
+- `OvernightSettings`
+  - 최소 주가 / 최소 거래량 / 최소 거래대금 / 최소 시총
+  - A급만 여부
+  - 실적 임박 제외 여부
+  - 포스트마켓 허용 여부
+  - 자동 새로고침 간격
+  - 5개 카테고리 점수 가중치
 
-- `MarketMacroSnapshot`: 시장 레짐, 지수, 거시 자산, 경제 일정
-- `SectorPerformance`: 5/20/60일 상대강도 기반 섹터 점수
-- `ThemeSnapshot`: 뉴스 언급량, 감성, 가격 반응 기반 테마 점수
-- `StockSnapshot`: 프로필, 시세, 기술적 지표, 실적, 뉴스, 이벤트
-- `CandidateStock`: 점수, 라벨, 서술형 근거가 결합된 감시 후보
-- `WatchlistSummary`: 오늘 감시리스트와 전일 대비 변화
-- `ProviderSet`: market/news/fundamentals/calendar/ai provider 묶음
+### raw feature 모델
+- `OvernightRawCandidate`
+  - 가격, 고가/저가, VWAP
+  - 평균 거래량, 평균 거래대금, 시총, 스프레드
+  - RVOL, 장막판 30분 거래량 유지, 종가 부근 체결 집중
+  - 실적/가이던스/계약/정책/애널리스트/테마 점수
+  - 부정 뉴스/희석/소송 패널티
+  - 프리마켓 관심도, 애프터마켓 변화율, 저항 거리, 실적까지 남은 일수
 
-## 4. 점수 엔진
+### 후보 모델
+- `OvernightCandidate`
+  - 총점 및 5개 카테고리 점수
+  - 등급
+  - 추천 이유 3개
+  - 리스크 3개
+  - 익일 시나리오
+  - 진입 아이디어
+  - 청산 아이디어
+  - 뉴스 리스트
 
-점수 계산은 `scoring/engine.ts`에 있습니다.
+## 4. Scoring Logic
 
-```ts
-finalScore =
-  0.15 * macroFit +
-  0.20 * sectorStrength +
-  0.15 * themeStrength +
-  0.15 * earningsNews +
-  0.20 * priceStructure +
-  0.10 * flowVolume +
-  0.05 * valuationSanity -
-  riskPenalty;
-```
+총점 100점 기준입니다.
 
-세부 점수:
+- `유동성 20점`
+  - 평균 거래량
+  - 평균 거래대금
+  - 시가총액
+  - 스프레드 안정성
 
-- `macroFit`: 시장 레짐, VIX, 달러, 금리 방향
-- `sectorStrength`: 5/20/60일 상대강도
-- `themeStrength`: 테마 연결도와 테마 점수
-- `earningsNews`: 실적 서프라이즈, 가이던스, 뉴스 감성
-- `priceStructure`: 이동평균 구조, 52주 고점 대비 위치, 거래량
-- `flowVolume`: 거래량 비율과 단기 가속도
-- `valuationSanity`: 섹터 성격 대비 밸류 sanity check
-- `riskPenalty`: 실적 임박, 과열, 악재 뉴스, 변동성
+- `당일 강도 25점`
+  - 당일 상승률
+  - 종가의 고가 근접도
+  - VWAP 상단 마감 여부
+  - 장마감 30분 강세
 
-## 5. Mock 모드
+- `거래량/수급 20점`
+  - RVOL
+  - 장마감 30분 거래량 유지
+  - 종가 부근 체결 집중도
+  - 대량 매도봉 패널티
 
-`mock` 모드는 데모 전용입니다.
+- `뉴스/재료/모멘텀 25점`
+  - 실적 서프라이즈
+  - 가이던스 상향
+  - 대형 계약/정책/애널리스트 상향
+  - 섹터 모멘텀
+  - 악재/희석/소송 패널티
 
-- 앱을 즉시 실행해서 화면과 흐름을 확인할 수 있습니다.
-- 샘플 숫자이므로 실시간 투자 판단에 쓰면 안 됩니다.
-- UI에 명시적인 경고가 표시됩니다.
+- `익일 실현 가능성 10점`
+  - 프리마켓 관심도
+  - 애프터마켓 거래 질
+  - 바로 위 일봉 저항과의 거리
+  - 실적 발표 일정 리스크
 
-관련 파일:
+### 등급 기준
+- `85점 이상`: A
+- `75~84점`: B
+- `65~74점`: C
+- `64점 이하`: Excluded
 
-- `providers/mock/mock-data.ts`
-- `providers/mock/mock-providers.ts`
+## 5. Explainable AI 방식
 
-## 6. Live 모드
+추천을 블랙박스로 보이지 않게 하기 위해 각 후보마다 아래를 자동 생성합니다.
 
-`live` 모드는 실제 데이터용입니다.
+- 추천 이유 3개
+- 주의할 리스크 3개
+- 익일 시나리오 A
+- 익일 시나리오 B
+- 진입 아이디어
+- 청산 아이디어
 
-현재 live 모드에서 하는 일:
+현재 MVP는 deterministic 점수 + 템플릿 설명 방식입니다.  
+추후 live 모드에서는 뉴스 분류와 요약에만 LLM을 사용하고, 점수 계산 자체는 deterministic 구조를 유지하는 것을 권장합니다.
 
-- FMP 기반 종목 현재가, 거래량, 시가총액, 평균 거래량 조회
-- 가격 이력으로 20/50/200일선, 52주 고점, 상대 위치 계산
-- 종목 뉴스, 실적 서프라이즈, 실적 캘린더 반영
-- 실시간 종목 스냅샷으로 섹터 강도와 테마 모멘텀 재계산
-- Power Infrastructure 유니버스 추가
-  - `VRT`, `ETN`, `GEV`, `CEG`, `BE`, `VST`, `NRG`, `TLN`, `BWXT`
+## 6. MVP Development Order
 
-중요:
+### 1단계 MVP
+- 종목 스캔
+- 기본 필터
+- 점수 계산
+- TOP 10 출력
+- 상세 점수 설명
 
-- `APP_DATA_MODE=live`
-- `APP_STRICT_LIVE_MODE=true`
-- `FMP_API_KEY` 설정
+### 2단계
+- 뉴스 감성 분석
+- 섹터 강도 반영
+- 실적 일정 반영
+- 포스트마켓 적합도 표시 고도화
 
-이 세 조건이 맞지 않으면 실시간 앱인 척 하지 않고 설정 필요 상태를 보여줍니다.
+### 3단계
+- 알림
+- 사용자 설정 저장 서버화
+- 백테스트
+- 익일 성과 추적 리포트
 
-관련 파일:
+## 7. Current Implementation
 
-- `providers/live/live-providers.ts`
-- `services/live-analytics.ts`
-- `providers/factory.ts`
+현재 구현된 화면:
+- `/`
+  - 대시보드
+- `/stocks/[ticker]`
+  - 종목 상세
+- `/settings`
+  - 전략 설정
 
-## 7. 실행 방법
+현재 구현된 API:
+- `/api/scan`
+  - 스캔 결과 반환
 
-### 로컬 실행
+## 8. Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-브라우저에서 [http://localhost:3000](http://localhost:3000) 을 엽니다.
-
-### 프로덕션 확인
+프로덕션 빌드:
 
 ```bash
 npm run build
 npm run start
 ```
 
-### 상태 확인
+## 9. Next TODO
 
-```text
-GET /api/health
-```
-
-예시:
-
-- mock 모드: `ok: true`, `runtimeMode: "mock"`
-- live 모드인데 키 없음: `503` + 설정 필요 메시지
-- live 모드 정상: `ok: true`, `runtimeMode: "live"` 또는 `"hybrid"`
-
-## 8. 환경 변수 예시
-
-`.env.example`를 기준으로 설정합니다.
-
-```env
-APP_DATA_MODE=mock
-APP_STRICT_LIVE_MODE=true
-APP_DEFAULT_UNIVERSE=sp500
-APP_TIMEZONE=Asia/Seoul
-APP_DB_PATH=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-FMP_API_KEY=
-FMP_BASE_URL=https://financialmodelingprep.com/stable
-APP_CUSTOM_TICKERS=
-```
-
-실시간 정확도용 권장 값:
-
-```env
-APP_DATA_MODE=live
-APP_STRICT_LIVE_MODE=true
-FMP_API_KEY=your_key
-```
-
-## 9. Render 배포
-
-현재 `render.yaml`은 무료 Render에서 기본적으로 `mock` 모드로 뜨도록 되어 있습니다.
-
-이유:
-
-- FMP 키 없이 live로 올리면 health check가 실패합니다.
-- 그래서 배포는 mock로 유지하고, 실제 사용 시 Render 환경 변수에서 live로 전환하는 방식이 안전합니다.
-
-Render에서 실시간 모드로 전환하려면:
-
-1. 서비스 `Environment`로 이동
-2. `FMP_API_KEY` 추가
-3. 필요하면 `OPENAI_API_KEY` 추가
-4. `APP_DATA_MODE=live`
-5. `APP_STRICT_LIVE_MODE=true`
-6. 재배포
-
-## 10. Live API 연동 TODO
-
-아직 남아 있는 실전 보강 항목:
-
-- FMP plan별 지연 시간과 호출 제한을 감안한 캐시 정책 추가
-- 실적 revision estimate 공급자 추가
-- insider sell, dilution, regulatory risk 공급자 추가
-- 더 넓은 미국주식 유니버스 스캐너 추가
-- watchlist 저장소를 Postgres로 전환 가능한 어댑터 추가
-- live data freshness 표시와 last update 타임스탬프 강화
-
-## 11. 검증
-
-현재 로컬에서 확인한 항목:
-
-- `npm run build` 통과
-- strict live 타입 검사 통과
-- live provider 기반 섹터/테마 계산 빌드 통과
-
-## 12. 참고
-
-FMP stable API 문서는 공식 문서를 기준으로 맞췄습니다.
-
-- [FMP stable API landing](https://site.financialmodelingprep.com/developer/docs/stable)
-- [FMP stable quote endpoint](https://site.financialmodelingprep.com/developer/docs/stable/stock-quote-api)
-- [FMP stable profile endpoint](https://site.financialmodelingprep.com/developer/docs/stable/company-profile-api)
+- live market data provider 연결
+- 뉴스 감성 분류기 추가
+- 실적 캘린더 provider 추가
+- 포스트마켓 체결 품질 로직 고도화
+- 알림 채널 이메일/텔레그램/웹푸시 연결
+- 백테스트 snapshot 저장과 익일 성과 집계
