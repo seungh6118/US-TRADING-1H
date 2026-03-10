@@ -12,11 +12,7 @@ export function DashboardLoadingShell({
               <span className="pill">서비스 준비 중</span>
               <span className="pill">첫 접속은 조금 더 걸릴 수 있습니다</span>
             </div>
-            <h1 className="max-w-4xl text-4xl leading-tight text-slate-50 sm:text-5xl lg:text-[3.55rem]">
-              미국장을 오래 읽지 않아도,
-              <br />
-              핵심 흐름이 먼저 보이게
-            </h1>
+            <h1 className="max-w-4xl text-4xl leading-tight text-slate-50 sm:text-5xl lg:text-[3.3rem]">S&amp;P500 단기 상승 후보 리서치</h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-slate-200/90">
               {message} 무료 Render 환경에서는 슬립 복구와 데이터 계산 때문에 첫 진입이 30초 이상 걸릴 수 있습니다.
               화면은 바로 열어두고 잠시만 기다려 주세요.

@@ -27,10 +27,17 @@ function tileSpan(index: number) {
   if (index === 1 || index === 2) {
     return "md:col-span-2";
   }
-  if (index <= 5) {
-    return "md:col-span-1";
-  }
   return "md:col-span-1";
+}
+
+function convictionTone(score: number) {
+  if (score >= 80) {
+    return "positive" as const;
+  }
+  if (score >= 68) {
+    return "info" as const;
+  }
+  return "caution" as const;
 }
 
 export function CandidateHeatmap({ candidates }: { candidates: CandidateStock[] }) {
@@ -46,15 +53,17 @@ export function CandidateHeatmap({ candidates }: { candidates: CandidateStock[] 
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
+              <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-slate-200/65">
+                <span>우선순위 #{index + 1}</span>
+                <span>2~3일 관점</span>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="truncate text-xl font-semibold tracking-[-0.03em] text-white">{candidate.profile.ticker}</span>
                 <Badge tone={candidate.quote.change1dPct >= 0 ? "positive" : "danger"}>{formatPercent(candidate.quote.change1dPct)}</Badge>
               </div>
               <p className="mt-1 truncate text-sm text-slate-200/90">{candidate.profile.companyName}</p>
             </div>
-            <Badge tone={candidate.score.finalScore >= 70 ? "positive" : candidate.score.finalScore >= 58 ? "info" : "caution"}>
-              {candidate.score.finalScore.toFixed(1)}
-            </Badge>
+            <Badge tone={convictionTone(candidate.score.finalScore)}>점수 {candidate.score.finalScore.toFixed(1)}</Badge>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -73,7 +82,7 @@ export function CandidateHeatmap({ candidates }: { candidates: CandidateStock[] 
               <p className="mt-1 text-lg font-semibold text-white">{formatCurrency(candidate.quote.price)}</p>
             </div>
             <div className="text-right">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-200/70">핵심 포인트</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-200/70">단기 핵심 근거</p>
               <p className="mt-1 max-w-[14rem] text-sm leading-5 text-slate-100/90">{candidate.narrative.whyWatch[0]}</p>
             </div>
           </div>

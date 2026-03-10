@@ -72,6 +72,28 @@ function formatBillions(value: number) {
   return `${value.toFixed(value >= 100 ? 0 : 1)}B`;
 }
 
+function shortTermPriority(candidate: DashboardData["candidates"][number]) {
+  const labelBonus =
+    candidate.label === "Breakout candidate"
+      ? 8
+      : candidate.label === "Pullback candidate"
+        ? 5
+        : candidate.label === "Watch"
+          ? 2
+          : candidate.label === "Avoid"
+            ? -8
+            : 0;
+
+  return (
+    candidate.score.finalScore * 0.62 +
+    candidate.quote.change1dPct * 2.8 +
+    candidate.quote.change5dPct * 1.5 +
+    candidate.technicals.volumeRatio * 3.2 +
+    labelBonus -
+    candidate.score.riskPenalty * 10
+  );
+}
+
 export function DashboardClient({ initialData }: { initialData: DashboardData }) {
   const [data, setData] = useState(initialData);
   const [universe, setUniverse] = useState<UniverseKey>(initialData.universe);
@@ -110,6 +132,11 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
     });
   }, [data.candidates, deferredSearch, filters]);
 
+  const rankedCandidates = useMemo(
+    () => [...filteredCandidates].sort((left, right) => shortTermPriority(right) - shortTermPriority(left)),
+    [filteredCandidates]
+  );
+
   const sectorOptions = useMemo(
     () => ["All", ...Array.from(new Set(data.candidates.map((candidate) => candidate.profile.sector)))],
     [data.candidates]
@@ -125,7 +152,8 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
   }, [data.candidates, saved, snapshotMap]);
 
-  const heatmapCandidates = filteredCandidates.length > 0 ? filteredCandidates : data.candidates;
+  const heatmapCandidates = rankedCandidates.length > 0 ? rankedCandidates : [...data.candidates].sort((left, right) => shortTermPriority(right) - shortTermPriority(left));
+  const shortTermFocus = heatmapCandidates.slice(0, 3);
 
   async function loadDashboard(nextUniverse: UniverseKey, custom = customTickerInput) {
     const params = new URLSearchParams({ universe: nextUniverse });
@@ -175,48 +203,50 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
         <div className="grid gap-6 px-5 py-6 sm:px-6 lg:px-8 lg:py-8 xl:grid-cols-[1.18fr_0.82fr]">
           <div>
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Badge tone="info">미국주식 AI 리서치 레이더</Badge>
+              <Badge tone="info">S&amp;P500 단기 상승 후보 리서치</Badge>
               <Badge tone={regimeTone(data.market.regime)}>{displayRegime(data.market.regime)}</Badge>
               <Badge tone={data.status.runtimeMode === "mock" ? "caution" : "positive"}>{displayRuntimeMode(data.status.runtimeMode)}</Badge>
               {isMock ? <Badge tone="danger">실시간 아님</Badge> : null}
               <Badge tone="neutral">{displayUniverse(data.universe)}</Badge>
             </div>
-            <h1 className="max-w-4xl text-4xl leading-tight text-slate-50 sm:text-5xl lg:text-[3.55rem]">
-              미국장을 오래 읽지 않아도,
-              <br />
-              핵심 흐름이 먼저 보이게
-            </h1>
+            <h1 className="max-w-4xl text-4xl leading-tight text-slate-50 sm:text-5xl lg:text-[3.3rem]">S&amp;P500 단기 상승 후보 리서치</h1>
             <p className="mt-4 max-w-4xl text-base leading-7 text-slate-200/90">
-              {data.status.note} 생성 시각 {formatDateTime(data.generatedAt)}. 이 화면은 매수 버튼을 서두르게 만드는 앱이 아니라,
-              오늘과 이번 주에 계속 봐야 할 종목을 근거 중심으로 먼저 압축해 주는 리서치 보드입니다.
+              {data.status.note} 생성 시각 {formatDateTime(data.generatedAt)}. 핵심 목적은 S&amp;P500 안에서 AI가 감지한
+              2~3일 단기 상승 후보를 우선순위대로 바로 보여주는 것입니다. 가장 먼저 볼 이름이 위로, 더 크게 나오도록 정렬했습니다.
             </p>
             <div className="mt-5 flex flex-wrap gap-2.5">
-              <span className="pill">오늘의 해석: {data.marketRecap.interpretation}</span>
-              <span className="pill">강한 쪽: {data.marketRecap.strongAreas[0] ?? "데이터 확인 중"}</span>
-              <span className="pill">약한 쪽: {data.marketRecap.weakAreas[0] ?? "데이터 확인 중"}</span>
+              <span className="pill">히트맵 크기 = 추천 우선순위</span>
+              <span className="pill">히트맵 색 = 1일 강도</span>
+              <span className="pill">추천 기준 = 2~3일 시나리오</span>
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="hero-stat">
-              <p className="label">액션 후보</p>
-              <p className="mt-2 text-3xl font-semibold text-white">{data.topActionable.length}</p>
-              <p className="mt-2 text-sm text-slate-300">바로 깊게 읽을 우선 후보 수</p>
+          <div className="rounded-[28px] border border-white/8 bg-black/16 p-4 sm:p-5">
+            <p className="label">AI 단기 1~3순위</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">지금 화면 기준으로 2~3일 안에 가장 먼저 볼 후보입니다.</p>
+            <div className="mt-4 space-y-3">
+              {shortTermFocus.map((candidate, index) => (
+                <Link
+                  key={candidate.profile.ticker}
+                  href={`/stocks/${candidate.profile.ticker}`}
+                  className="block rounded-[20px] border border-white/8 bg-white/5 px-4 py-4 transition hover:border-cyan-400/30 hover:bg-white/10"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">우선순위 #{index + 1}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xl font-semibold text-white">{candidate.profile.ticker}</span>
+                        <Badge tone={labelTone(candidate.label)}>{displayCandidateLabel(candidate.label)}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{candidate.narrative.whyWatch[0]}</p>
+                    </div>
+                    <ScoreBadge score={candidate.score.finalScore} />
+                  </div>
+                </Link>
+              ))}
             </div>
-            <div className="hero-stat">
-              <p className="label">감시리스트</p>
-              <p className="mt-2 text-3xl font-semibold text-white">{data.watchlist.items.length}</p>
-              <p className="mt-2 text-sm text-slate-300">오늘 스냅샷 기준 추적 종목</p>
-            </div>
-            <div className="hero-stat">
-              <p className="label">리스크 경고</p>
-              <p className="mt-2 text-3xl font-semibold text-white">{data.riskAlerts.length}</p>
-              <p className="mt-2 text-sm text-slate-300">실적, 변동성, 추격 리스크</p>
-            </div>
-            <div className="hero-stat">
-              <p className="label">유니버스</p>
-              <p className="mt-2 text-3xl font-semibold text-white">{data.candidates.length}</p>
-              <p className="mt-2 text-sm text-slate-300">현재 스캔 중인 종목 수</p>
+            <div className="mt-4 rounded-[18px] border border-cyan-400/12 bg-cyan-400/6 px-4 py-3 text-sm leading-6 text-slate-200">
+              가장 큰 타일이 현재 1순위입니다. 왼쪽 위에서 오른쪽 아래로 갈수록 후순위로 보시면 됩니다.
             </div>
           </div>
         </div>
@@ -228,70 +258,9 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
         </div>
       ) : null}
 
-      <div className="mb-6 grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <Panel title="오늘의 시장 스캔맵" subtitle="히트맵처럼 강한 이름과 약한 이름을 빠르게 훑어본 뒤, 아래 후보 보드에서 더 깊게 읽어가면 됩니다.">
+      <div className="mb-6">
+        <Panel title="오늘의 시장 스캔맵" subtitle="왼쪽 위, 그리고 더 큰 타일일수록 현재 추천 우선순위가 높습니다. 색은 1일 강도를 뜻합니다.">
           <CandidateHeatmap candidates={heatmapCandidates} />
-        </Panel>
-
-        <Panel title="액션 보드" subtitle="오늘의 액션 후보, 감시리스트, 회피 이름을 한 번에 압축해 보여줍니다.">
-          <div className="space-y-4">
-            <div>
-              <p className="label">Today&apos;s Top 3 actionable names</p>
-              <div className="mt-3 space-y-2">
-                {data.topActionable.map((candidate) => (
-                  <Link
-                    key={candidate.profile.ticker}
-                    href={`/stocks/${candidate.profile.ticker}`}
-                    className="block rounded-[20px] border border-white/8 bg-white/5 px-4 py-3 transition hover:border-cyan-400/30 hover:bg-white/10"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-white">{candidate.profile.ticker}</p>
-                        <p className="mt-1 text-sm text-slate-300">{candidate.narrative.whyWatch[0]}</p>
-                      </div>
-                      <ScoreBadge score={candidate.score.finalScore} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="label">Top 5 watchlist names</p>
-              <div className="mt-3 grid gap-2">
-                {data.watchlist.items.slice(0, 5).map((item) => (
-                  <div key={item.ticker} className="rounded-[18px] border border-white/8 bg-white/5 px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">{item.ticker}</span>
-                        {item.isNew ? <Badge tone="info">신규</Badge> : null}
-                      </div>
-                      <span className={`text-sm font-medium ${deltaTone(item.deltaFromPrior)}`}>
-                        {item.deltaFromPrior >= 0 ? "+" : ""}
-                        {item.deltaFromPrior.toFixed(1)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-300">{item.reason}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="label">Avoid 3</p>
-              <div className="mt-3 grid gap-2">
-                {data.avoidList.map((candidate) => (
-                  <div key={candidate.profile.ticker} className="rounded-[18px] border border-rose-400/18 bg-rose-400/8 px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold text-white">{candidate.profile.ticker}</span>
-                      <ScoreBadge score={candidate.score.finalScore} />
-                    </div>
-                    <p className="mt-1 text-sm text-slate-200">{candidate.narrative.whyNotYet[0]}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </Panel>
       </div>
 
@@ -409,10 +378,10 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
         </Panel>
 
         <Panel
-          title="후보 압축 보드"
-          subtitle="필터를 조정하면서 오늘 더 읽어볼 이름만 남기도록 만든 압축형 리스트입니다."
+          title="후보 전체 랭킹"
+          subtitle="아래 리스트도 2~3일 단기 관점 우선순위 순으로 정렬됩니다."
           className="xl:col-span-1"
-          action={isPending ? <Badge tone="info">다시 계산 중</Badge> : <Badge tone="neutral">{filteredCandidates.length}개 표시</Badge>}
+          action={isPending ? <Badge tone="info">다시 계산 중</Badge> : <Badge tone="neutral">{heatmapCandidates.length}개 표시</Badge>}
         >
           <div className="filter-shell mb-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -535,12 +504,12 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
           </div>
 
           <div className="space-y-3">
-            {filteredCandidates.length === 0 ? (
+            {heatmapCandidates.length === 0 ? (
               <div className="rounded-[22px] border border-dashed border-white/14 px-4 py-6 text-sm text-slate-400">
                 현재 필터를 통과하는 후보가 없습니다. 시총/거래대금/ATR 조건을 조금 완화해 보세요.
               </div>
             ) : (
-              filteredCandidates.map((candidate) => {
+              heatmapCandidates.map((candidate, index) => {
                 const isSaved = savedTickers.has(candidate.profile.ticker);
                 const snapshot = snapshotMap.get(candidate.profile.ticker);
 
@@ -549,6 +518,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone="info">#{index + 1}</Badge>
                           <Link href={`/stocks/${candidate.profile.ticker}`} className="text-xl font-semibold tracking-[-0.03em] text-white transition hover:text-cyan-200">
                             {candidate.profile.ticker}
                           </Link>
