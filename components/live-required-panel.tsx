@@ -6,7 +6,7 @@
         <h1 className="mt-3 text-3xl font-semibold text-slate-50">{title}</h1>
         <p className="mt-4 text-sm leading-7 text-slate-300">{detail}</p>
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-slate-300">
-          Render 환경변수에 `APP_DATA_MODE=live` 와 `FMP_API_KEY`를 넣어야 실제 시세와 뉴스가 계산됩니다. 이 설정이 없으면 정확도용 앱으로 쓰면 안 됩니다.
+          무료로 쓰려면 `APP_DATA_MODE=live` 와 `APP_LIVE_PROVIDER=yahoo` 조합을 권장합니다. FMP를 쓰려면 `APP_LIVE_PROVIDER=fmp` 와 `FMP_API_KEY`가 필요합니다.
         </div>
       </div>
     </main>

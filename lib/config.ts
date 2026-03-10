@@ -12,6 +12,7 @@ export const scoreWeights = {
 
 export const appConfig = {
   requestedMode: (process.env.APP_DATA_MODE ?? "mock") as AppMode,
+  liveProvider: process.env.APP_LIVE_PROVIDER ?? "yahoo",
   defaultUniverse: (process.env.APP_DEFAULT_UNIVERSE ?? "sp500") as UniverseKey,
   timezone: process.env.APP_TIMEZONE ?? "Asia/Seoul",
   strictLiveMode: process.env.APP_STRICT_LIVE_MODE !== "false",

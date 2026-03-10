@@ -1,6 +1,12 @@
-﻿import { appConfig } from "@/lib/config";
+import { appConfig } from "@/lib/config";
 import { LiveDataUnavailableError } from "@/lib/errors";
 import { ProviderSet } from "@/lib/types";
+import {
+  YahooFreeCalendarProvider,
+  YahooFreeFundamentalsProvider,
+  YahooFreeMarketDataProvider,
+  YahooFreeNewsProvider
+} from "@/providers/free/yahoo-free-providers";
 import { FmpClient } from "@/providers/live/fmp-client";
 import {
   LiveCalendarProvider,
@@ -17,40 +23,52 @@ import {
   TemplateAIProvider
 } from "@/providers/mock/mock-providers";
 
+function getMockProviderSet(): ProviderSet {
+  return {
+    marketDataProvider: new MockMarketDataProvider(),
+    newsProvider: new MockNewsProvider(),
+    fundamentalsProvider: new MockFundamentalsProvider(),
+    calendarProvider: new MockCalendarProvider(),
+    aiProvider: new TemplateAIProvider(),
+    status: {
+      requestedMode: "mock",
+      runtimeMode: "mock",
+      note: "샘플 데이터로 시장 구조를 미리 보는 모의 모드입니다. 실시간 시세 정확도 용도로 쓰면 안 됩니다."
+    }
+  };
+}
+
+function getYahooFreeProviderSet(): ProviderSet {
+  return {
+    marketDataProvider: new YahooFreeMarketDataProvider(),
+    newsProvider: new YahooFreeNewsProvider(),
+    fundamentalsProvider: new YahooFreeFundamentalsProvider(),
+    calendarProvider: new YahooFreeCalendarProvider(),
+    aiProvider: new TemplateAIProvider(),
+    status: {
+      requestedMode: "live",
+      runtimeMode: "live",
+      note: "Yahoo 무료 가격 데이터를 기반으로 계산 중입니다. 가격/차트는 실시간에 가깝게 반영되지만 뉴스·실적·펀더멘털 일부는 제한적이거나 정적 메타데이터를 사용합니다."
+    }
+  };
+}
+
 export function getProviderSet(): ProviderSet {
   if (appConfig.requestedMode === "mock") {
-    return {
-      marketDataProvider: new MockMarketDataProvider(),
-      newsProvider: new MockNewsProvider(),
-      fundamentalsProvider: new MockFundamentalsProvider(),
-      calendarProvider: new MockCalendarProvider(),
-      aiProvider: new TemplateAIProvider(),
-      status: {
-        requestedMode: "mock",
-        runtimeMode: "mock",
-        note: "샘플 데이터로 시장 구조를 미리 보는 모의 모드입니다. 실시간 시세 정확도 용도로 쓰면 안 됩니다."
-      }
-    };
+    return getMockProviderSet();
+  }
+
+  if (appConfig.liveProvider !== "fmp") {
+    return getYahooFreeProviderSet();
   }
 
   const client = new FmpClient();
   if (!client.configured && appConfig.strictLiveMode) {
-    throw new LiveDataUnavailableError("실시간 정확도 모드를 사용하려면 FMP_API_KEY가 필요합니다.");
+    throw new LiveDataUnavailableError("FMP 모드를 사용하려면 FMP_API_KEY가 필요합니다. 무료 사용을 원하면 APP_LIVE_PROVIDER=yahoo 로 두세요.");
   }
 
   if (!client.configured) {
-    return {
-      marketDataProvider: new MockMarketDataProvider(),
-      newsProvider: new MockNewsProvider(),
-      fundamentalsProvider: new MockFundamentalsProvider(),
-      calendarProvider: new MockCalendarProvider(),
-      aiProvider: new TemplateAIProvider(),
-      status: {
-        requestedMode: "live",
-        runtimeMode: "mock",
-        note: "실시간 모드가 요청되었지만 API 키가 없어 모의 데이터로 동작 중입니다. 정확한 판단에는 사용할 수 없습니다."
-      }
-    };
+    return getYahooFreeProviderSet();
   }
 
   const runtimeMode = process.env.OPENAI_API_KEY ? "hybrid" : "live";
