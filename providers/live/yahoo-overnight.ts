@@ -83,6 +83,39 @@ type YahooChartResponse = {
   };
 };
 
+type YahooSparkResponse = {
+  spark?: {
+    result?: Array<{
+      symbol?: string;
+      response?: Array<{
+        meta?: {
+          symbol?: string;
+          longName?: string;
+          shortName?: string;
+          regularMarketPrice?: number;
+          previousClose?: number;
+          chartPreviousClose?: number;
+          regularMarketDayHigh?: number;
+          regularMarketDayLow?: number;
+          regularMarketVolume?: number;
+          marketState?: string;
+          currentTradingPeriod?: {
+            regular?: { start?: number; end?: number };
+            post?: { start?: number; end?: number };
+          };
+        };
+        timestamp?: number[];
+        indicators?: {
+          quote?: Array<{
+            close?: Array<number | null>;
+          }>;
+        };
+      }>;
+    }>;
+    error?: { code?: string; description?: string } | null;
+  };
+};
+
 export interface YahooScreenedQuote {
   symbol: string;
   companyName: string;
@@ -144,6 +177,23 @@ export interface YahooChartData {
   postStart: number | null;
   postEnd: number | null;
   bars: YahooBar[];
+}
+
+export interface YahooSparkQuote {
+  symbol: string;
+  companyName: string | null;
+  price: number;
+  previousClose: number;
+  dayHigh: number;
+  dayLow: number;
+  regularVolume: number;
+  marketState: string;
+  regularStart: number | null;
+  regularEnd: number | null;
+  postStart: number | null;
+  postEnd: number | null;
+  timestamps: number[];
+  closes: number[];
 }
 
 function getRawValue(value: YahooRawValue) {
@@ -357,6 +407,79 @@ export async function fetchYahooChartData(
     postEnd: result.meta.currentTradingPeriod?.post?.end ?? null,
     bars
   };
+}
+
+export async function fetchYahooSparkBatch(
+  symbols: string[],
+  range: string,
+  interval: string,
+  includePrePost: boolean
+): Promise<YahooSparkQuote[]> {
+  if (symbols.length === 0) {
+    return [];
+  }
+
+  if (symbols.length > 20) {
+    const chunks: string[][] = [];
+    for (let index = 0; index < symbols.length; index += 20) {
+      chunks.push(symbols.slice(index, index + 20));
+    }
+
+    const chunkResults = await Promise.all(chunks.map((chunk) => fetchYahooSparkBatch(chunk, range, interval, includePrePost)));
+    return chunkResults.flat();
+  }
+
+  const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
+    symbols.join(",")
+  )}&range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}&includePrePost=${
+    includePrePost ? "true" : "false"
+  }`;
+  let json: YahooSparkResponse;
+  try {
+    json = await fetchJson<YahooSparkResponse>(url);
+  } catch (error) {
+    if (symbols.length === 1) {
+      throw error;
+    }
+
+    const midpoint = Math.ceil(symbols.length / 2);
+    const left = await fetchYahooSparkBatch(symbols.slice(0, midpoint), range, interval, includePrePost);
+    const right = await fetchYahooSparkBatch(symbols.slice(midpoint), range, interval, includePrePost);
+    return [...left, ...right];
+  }
+  const results = json.spark?.result ?? [];
+
+  return results
+    .map((item) => {
+      const response = item.response?.[0];
+      const meta = response?.meta;
+      const closes = (response?.indicators?.quote?.[0]?.close ?? []).filter(
+        (value): value is number => typeof value === "number" && Number.isFinite(value)
+      );
+      const timestamps = response?.timestamp ?? [];
+
+      if (!meta?.symbol || closes.length === 0) {
+        return null;
+      }
+
+      return {
+        symbol: meta.symbol,
+        companyName: meta.longName ?? meta.shortName ?? null,
+        price: meta.regularMarketPrice ?? closes.at(-1) ?? 0,
+        previousClose: meta.previousClose ?? meta.chartPreviousClose ?? closes.at(-2) ?? 0,
+        dayHigh: meta.regularMarketDayHigh ?? Math.max(...closes),
+        dayLow: meta.regularMarketDayLow ?? Math.min(...closes),
+        regularVolume: meta.regularMarketVolume ?? 0,
+        marketState: meta.marketState ?? "REGULAR",
+        regularStart: meta.currentTradingPeriod?.regular?.start ?? null,
+        regularEnd: meta.currentTradingPeriod?.regular?.end ?? null,
+        postStart: meta.currentTradingPeriod?.post?.start ?? null,
+        postEnd: meta.currentTradingPeriod?.post?.end ?? null,
+        timestamps,
+        closes
+      } satisfies YahooSparkQuote;
+    })
+    .filter((item): item is YahooSparkQuote => Boolean(item));
 }
 
 export async function fetchYahooFocusSymbolQuote(symbol: string): Promise<YahooScreenedQuote> {

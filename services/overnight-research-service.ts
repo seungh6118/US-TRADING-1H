@@ -17,12 +17,15 @@ import {
 } from "@/lib/overnight-types";
 import { average, clamp, daysUntil, round1, sum, toIsoDateInTimezone } from "@/lib/utils";
 import { mockOvernightMarketBrief, mockOvernightUniverse } from "@/providers/mock/overnight-mock";
+import { fetchSp500Constituents } from "@/providers/live/sp500-constituents";
 import {
   fetchYahooChartData,
   fetchYahooFocusSymbolQuote,
+  fetchYahooSparkBatch,
   fetchYahooScreenerQuotes,
   fetchYahooSearchBundle,
   YahooChartData,
+  YahooSparkQuote,
   YahooScreenedQuote
 } from "@/providers/live/yahoo-overnight";
 import { scoreOvernightCandidate } from "@/scoring/overnight-engine";
@@ -307,6 +310,18 @@ function determinePostMarketSuitability(
   return "avoid";
 }
 
+function scale(value: number, min: number, max: number): number {
+  if (max <= min) {
+    return 0;
+  }
+
+  return clamp(((value - min) / (max - min)) * 100, 0, 100);
+}
+
+function invertScale(value: number, min: number, max: number): number {
+  return 100 - scale(value, min, max);
+}
+
 function buildSnapshotId(sessionDate: string, recordedAt: string) {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: overnightRuntime.marketTimezone,
@@ -340,13 +355,55 @@ function getCloseCountdownMinutes(now = new Date()) {
   return close - minutes;
 }
 
-function rankScreenerQuote(quote: YahooScreenedQuote) {
+function scoreSparkSeed(quote: YahooSparkQuote, screeners: string[]) {
+  const closeSeries = quote.closes;
+  const last = closeSeries.at(-1) ?? quote.price;
+  const thirtyMinuteSpan = closeSeries.length >= 7 ? closeSeries.slice(-7) : closeSeries;
+  const thirtyMinuteBase = thirtyMinuteSpan[0] ?? last;
+  const closeStrength30m = thirtyMinuteBase > 0 ? ((last - thirtyMinuteBase) / thirtyMinuteBase) * 100 : 0;
+  const closeToHighPct = quote.dayHigh > 0 ? ((quote.dayHigh - last) / quote.dayHigh) * 100 : 0;
+  const dollarVolumeM = (quote.price * quote.regularVolume) / 1_000_000;
   const screenerBonus =
-    (quote.screeners.includes("day_gainers") ? 40 : 0) +
-    (quote.screeners.includes("most_actives") ? 30 : 0) +
-    (quote.screeners.includes("growth_technology_stocks") ? 18 : 0);
+    (screeners.includes("day_gainers") ? 14 : 0) +
+    (screeners.includes("most_actives") ? 10 : 0) +
+    (screeners.includes("growth_technology_stocks") ? 8 : 0);
 
-  return screenerBonus + quote.dayChangePct * 4 + Math.log10(Math.max(quote.volume, 1));
+  return (
+    scale(quote.price, 10, 500) * 0.05 +
+    scale(quote.price > 0 ? ((quote.price - quote.previousClose) / quote.previousClose) * 100 : 0, -3, 12) * 0.36 +
+    invertScale(closeToHighPct, 0, 8) * 0.18 +
+    scale(closeStrength30m, -1, 3) * 0.18 +
+    scale(dollarVolumeM, 25, 2_500) * 0.15 +
+    scale(quote.regularVolume, 500_000, 80_000_000) * 0.08 +
+    screenerBonus
+  );
+}
+
+function buildSparkSeed(
+  quote: YahooSparkQuote,
+  companyName: string,
+  screeners: string[]
+): YahooScreenedQuote {
+  return {
+    symbol: quote.symbol,
+    companyName,
+    price: quote.price,
+    dayChangePct: quote.previousClose > 0 ? ((quote.price - quote.previousClose) / quote.previousClose) * 100 : 0,
+    dayHigh: quote.dayHigh,
+    dayLow: quote.dayLow,
+    volume: quote.regularVolume,
+    averageVolume: 0,
+    marketCapBn: 0,
+    bid: null,
+    ask: null,
+    postMarketPrice: null,
+    postMarketChangePct: 0,
+    earningsDate: null,
+    analystRating: null,
+    trailingPe: null,
+    marketState: quote.marketState,
+    screeners
+  };
 }
 
 async function buildSectorMomentumGetter() {
@@ -452,57 +509,95 @@ async function buildMarketBrief(candidates: OvernightCandidate[], generatedAt: s
 }
 
 async function buildLiveUniverseSeeds() {
+  const constituents = await fetchSp500Constituents();
+  const constituentMap = new Map(constituents.map((item) => [item.symbol, item]));
+  const constituentSymbols = constituents.map((item) => item.symbol);
+  const constituentSet = new Set(constituentSymbols);
+
   const screenerResults = await Promise.all(
     overnightScreeners.map((screenId) => fetchYahooScreenerQuotes(screenId, overnightRuntime.screenerCount))
   );
-
-  const merged = new Map<string, YahooScreenedQuote>();
+  const screenerMap = new Map<string, string[]>();
   screenerResults.forEach((quotes) => {
     quotes.forEach((quote) => {
-      const existing = merged.get(quote.symbol);
-      if (existing) {
-        existing.screeners = Array.from(new Set([...existing.screeners, ...quote.screeners]));
-        if (quote.marketCapBn > existing.marketCapBn) {
-          merged.set(quote.symbol, { ...existing, ...quote, screeners: existing.screeners });
-        }
-      } else {
-        merged.set(quote.symbol, quote);
+      if (!constituentSet.has(quote.symbol)) {
+        return;
       }
+
+      const existing = screenerMap.get(quote.symbol) ?? [];
+      screenerMap.set(quote.symbol, Array.from(new Set([...existing, ...quote.screeners])));
     });
   });
 
-  const rankedScreeners = [...merged.values()].sort((left, right) => rankScreenerQuote(right) - rankScreenerQuote(left));
-  const reservedForFocus = Math.min(Math.max(12, Math.floor(overnightRuntime.maxUniverseSymbols / 2)), overnightRuntime.maxUniverseSymbols);
-  const selected = rankedScreeners.slice(0, Math.max(overnightRuntime.maxUniverseSymbols - reservedForFocus, 0));
+  const sparkQuotes: YahooSparkQuote[] = [];
+  const batchSize = 50;
+  for (let index = 0; index < constituentSymbols.length; index += batchSize) {
+    const batch = constituentSymbols.slice(index, index + batchSize);
+    const batchQuotes = await fetchYahooSparkBatch(batch, "1d", "5m", true);
+    sparkQuotes.push(...batchQuotes);
+  }
+
+  const rankedSeeds = sparkQuotes
+    .map((quote) => {
+      const constituent = constituentMap.get(quote.symbol);
+      if (!constituent || quote.price <= 0) {
+        return null;
+      }
+
+      const screeners = Array.from(new Set(["sp500", ...(screenerMap.get(quote.symbol) ?? [])]));
+      return {
+        score: scoreSparkSeed(quote, screeners),
+        seed: buildSparkSeed(quote, constituent.companyName, screeners)
+      };
+    })
+    .filter((item): item is { score: number; seed: YahooScreenedQuote } => Boolean(item))
+    .sort((left, right) => right.score - left.score);
+
+  const prioritySymbols = overnightFocusSymbols.filter((symbol) => constituentSet.has(symbol));
+  const reservedForPriority = Math.min(Math.max(10, Math.floor(overnightRuntime.maxUniverseSymbols / 3)), overnightRuntime.maxUniverseSymbols);
+  const selected = rankedSeeds
+    .slice(0, Math.max(overnightRuntime.maxUniverseSymbols - reservedForPriority, 0))
+    .map((item) => item.seed);
   const selectedSymbols = new Set(selected.map((item) => item.symbol));
 
-  overnightFocusSymbols.forEach((symbol) => {
-    if (!selectedSymbols.has(symbol) && selected.length < overnightRuntime.maxUniverseSymbols) {
-      selected.push({
-        symbol,
-        companyName: symbol,
-        price: 0,
-        dayChangePct: 0,
-        dayHigh: 0,
-        dayLow: 0,
-        volume: 0,
-        averageVolume: 0,
-        marketCapBn: 0,
-        bid: null,
-        ask: null,
-        postMarketPrice: null,
-        postMarketChangePct: 0,
-        earningsDate: null,
-        analystRating: null,
-        trailingPe: null,
-        marketState: "REGULAR",
-        screeners: ["focus"]
-      });
-      selectedSymbols.add(symbol);
+  prioritySymbols.forEach((symbol) => {
+    if (selected.length >= overnightRuntime.maxUniverseSymbols || selectedSymbols.has(symbol)) {
+      return;
     }
+
+    const constituent = constituentMap.get(symbol);
+    if (!constituent) {
+      return;
+    }
+
+    selected.push({
+      symbol,
+      companyName: constituent.companyName,
+      price: 0,
+      dayChangePct: 0,
+      dayHigh: 0,
+      dayLow: 0,
+      volume: 0,
+      averageVolume: 0,
+      marketCapBn: 0,
+      bid: null,
+      ask: null,
+      postMarketPrice: null,
+      postMarketChangePct: 0,
+      earningsDate: null,
+      analystRating: null,
+      trailingPe: null,
+      marketState: "REGULAR",
+      screeners: ["sp500", "focus", "priority"]
+    });
+    selectedSymbols.add(symbol);
   });
 
-  return selected.slice(0, overnightRuntime.maxUniverseSymbols);
+  return {
+    seeds: selected.slice(0, overnightRuntime.maxUniverseSymbols),
+    universeCount: constituents.length,
+    prioritySymbols
+  };
 }
 
 async function buildLiveCandidate(quoteSeed: YahooScreenedQuote, getSectorMomentum: Awaited<ReturnType<typeof buildSectorMomentumGetter>>) {
@@ -735,11 +830,11 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     mode: "live",
     provider: overnightRuntime.provider,
     warning: "Yahoo 공개 데이터 기반입니다. 실시간성은 높지만 공식 브로커 체결 데이터와 차이가 있을 수 있습니다.",
-    notes: ["실시간 가격/뉴스/애프터마켓 반영", "백테스트는 저장 스냅샷 + 최근 20거래일 프록시 기반"],
+    notes: ["S&P500 전체 프리스캔 후 상위 종목 상세 계산", "실시간 가격/뉴스/애프터마켓 반영", "백테스트는 저장 스냅샷 + 최근 20거래일 프록시 기반"],
     lastSuccessfulAt: generatedAt
   };
 
-  const seeds = await buildLiveUniverseSeeds();
+  const { seeds, universeCount, prioritySymbols } = await buildLiveUniverseSeeds();
   const getSectorMomentum = await buildSectorMomentumGetter();
   const rawCandidates = await collectLiveCandidates(seeds, getSectorMomentum);
   const loadedSymbols = new Set(rawCandidates.map((candidate) => candidate.ticker));
@@ -763,7 +858,7 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     .sort((left, right) => right.score.total - left.score.total);
   const candidateSymbols = new Set(candidates.map((candidate) => candidate.ticker));
 
-  for (const symbol of overnightFocusSymbols) {
+  for (const symbol of prioritySymbols) {
     if (candidateSymbols.has(symbol) || candidates.length >= 10) {
       continue;
     }
@@ -817,7 +912,7 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     candidates,
     topCandidates: candidates.slice(0, 10),
     alerts: buildAlerts(candidates),
-    universeCount: rawCandidates.length,
+    universeCount,
     strategyBacktest: await buildStoredSnapshotBacktest()
   };
 
