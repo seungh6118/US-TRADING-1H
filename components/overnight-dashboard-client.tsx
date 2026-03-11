@@ -255,12 +255,12 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       </div>
 
       <SectionCard
-        title="종가베팅 후보 TOP 10"
-        subtitle="총점 100점 기준으로 정렬했습니다. 추천 이유 3개, 주의 리스크 3개, 익일 반응 백테스트를 함께 봅니다."
-        action={<Tag tone="info">{filtered.length}개 표시</Tag>}
+        title="종가베팅 후보 TOP 3"
+        subtitle="엄격 통과 후보를 우선 보여주고, 부족하면 근접 후보까지 채워서 장마감 직전 바로 판단할 3종목만 압축했습니다."
+        action={<Tag tone="info">{Math.min(filtered.length, 3)}개 표시</Tag>}
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          {filtered.slice(0, 10).map((candidate, index) => (
+          {filtered.slice(0, 3).map((candidate, index) => (
             <Link
               key={candidate.ticker}
               href={`/stocks/${candidate.ticker}`}

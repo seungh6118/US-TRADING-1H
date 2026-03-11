@@ -126,6 +126,29 @@ function passesFilters(candidate: OvernightCandidate, settings: OvernightSetting
   return true;
 }
 
+function passesBaselineFilters(candidate: OvernightCandidate, settings: OvernightSettings) {
+  const hasUpcomingEarningsRisk = candidate.daysToEarnings >= 0 && candidate.daysToEarnings <= 3;
+  if (candidate.price < settings.minPrice) {
+    return false;
+  }
+  if (candidate.averageVolume < settings.minAverageVolume) {
+    return false;
+  }
+  if (candidate.averageDollarVolumeM < settings.minAverageDollarVolumeM) {
+    return false;
+  }
+  if (candidate.marketCapBn < settings.minMarketCapBn) {
+    return false;
+  }
+  if (settings.excludeUpcomingEarnings && hasUpcomingEarningsRisk) {
+    return false;
+  }
+  if (!settings.allowPostMarket && candidate.postMarketSuitability === "avoid") {
+    return false;
+  }
+  return true;
+}
+
 function getTitleTone(title: string) {
   const lower = title.toLowerCase();
   const positiveHits = POSITIVE_KEYWORDS.filter((keyword) => lower.includes(keyword)).length;
@@ -575,11 +598,15 @@ async function buildLiveUniverseSeeds() {
 
   const sparkQuotes: YahooSparkQuote[] = [];
   const batchSize = 50;
+  const symbolBatches: string[][] = [];
   for (let index = 0; index < constituentSymbols.length; index += batchSize) {
-    const batch = constituentSymbols.slice(index, index + batchSize);
-    const batchQuotes = await fetchYahooSparkBatch(batch, "1d", "5m", true);
-    sparkQuotes.push(...batchQuotes);
+    symbolBatches.push(constituentSymbols.slice(index, index + batchSize));
   }
+
+  const sparkBatchResults = await Promise.all(symbolBatches.map((batch) => fetchYahooSparkBatch(batch, "1d", "5m", true)));
+  sparkBatchResults.forEach((batchQuotes) => {
+    sparkQuotes.push(...batchQuotes);
+  });
 
   const rankedSeeds = sparkQuotes
     .map((quote) => {
@@ -646,8 +673,8 @@ async function buildLiveUniverseSeeds() {
 
 async function buildLiveCandidate(quoteSeed: YahooScreenedQuote, getSectorMomentum: Awaited<ReturnType<typeof buildSectorMomentumGetter>>) {
   const [search, daily, intraday, focusQuote] = await Promise.all([
-    fetchYahooSearchBundle(quoteSeed.symbol, 6),
-    fetchYahooChartData(quoteSeed.symbol, "6mo", "1d", false),
+    fetchYahooSearchBundle(quoteSeed.symbol, 4),
+    fetchYahooChartData(quoteSeed.symbol, "3mo", "1d", false),
     fetchYahooChartData(quoteSeed.symbol, "1d", "1m", true),
     quoteSeed.marketCapBn > 0 && quoteSeed.averageVolume > 0 ? Promise.resolve<YahooScreenedQuote | null>(null) : fetchYahooFocusSymbolQuote(quoteSeed.symbol)
   ]);
@@ -793,7 +820,7 @@ async function collectLiveCandidates(
   getSectorMomentum: Awaited<ReturnType<typeof buildSectorMomentumGetter>>
 ) {
   const results: OvernightRawCandidate[] = [];
-  const batchSize = 8;
+  const batchSize = 12;
 
   for (let index = 0; index < seeds.length; index += batchSize) {
     const batch = seeds.slice(index, index + batchSize);
@@ -896,10 +923,10 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     }
   }
 
-  const candidates = rawCandidates
+  const scoredCandidates = rawCandidates
     .map((item) => scoreOvernightCandidate(item, settings))
-    .filter((candidate) => passesFilters(candidate, settings))
     .sort((left, right) => right.score.total - left.score.total);
+  const candidates = scoredCandidates.filter((candidate) => passesFilters(candidate, settings));
   const candidateSymbols = new Set(candidates.map((candidate) => candidate.ticker));
 
   for (const symbol of prioritySymbols) {
@@ -947,15 +974,34 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
 
   candidates.sort((left, right) => right.score.total - left.score.total);
 
-  const marketBrief = await buildMarketBrief(candidates, generatedAt);
+  const displayCandidates = [...candidates];
+  if (displayCandidates.length < 3) {
+    const nearMisses = scoredCandidates
+      .filter((candidate) => !candidateSymbols.has(candidate.ticker))
+      .filter((candidate) => passesBaselineFilters(candidate, settings))
+      .filter((candidate) => candidate.score.total >= 58)
+      .sort((left, right) => right.score.total - left.score.total);
+
+    for (const candidate of nearMisses) {
+      if (displayCandidates.length >= 3) {
+        break;
+      }
+      displayCandidates.push(candidate);
+      candidateSymbols.add(candidate.ticker);
+    }
+  }
+
+  displayCandidates.sort((left, right) => right.score.total - left.score.total);
+
+  const marketBrief = await buildMarketBrief(displayCandidates, generatedAt);
   const data: OvernightDashboardData = {
     generatedAt,
     status,
     marketBrief,
     settings,
-    candidates,
-    topCandidates: candidates.slice(0, 10),
-    alerts: buildAlerts(candidates),
+    candidates: displayCandidates,
+    topCandidates: displayCandidates.slice(0, 3),
+    alerts: buildAlerts(displayCandidates),
     universeCount,
     strategyBacktest: await buildStoredSnapshotBacktest()
   };

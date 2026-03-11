@@ -83,7 +83,7 @@ export function Tag({
 
 export function GradeBadge({ grade }: { grade: string }) {
   const tone = grade === "A" ? "positive" : grade === "B" ? "info" : grade === "C" ? "caution" : "danger";
-  return <Tag tone={tone}>{grade}급</Tag>;
+  return <Tag tone={tone}>{grade === "Excluded" ? "근접" : `${grade}급`}</Tag>;
 }
 
 export function ScoreBar({

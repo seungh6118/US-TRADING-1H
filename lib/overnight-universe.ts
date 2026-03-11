@@ -5,6 +5,7 @@ export const overnightScreeners = [
 ] as const;
 
 export const overnightFocusSymbols = [
+  "MSFT",
   "NVDA",
   "AVGO",
   "AMD",
