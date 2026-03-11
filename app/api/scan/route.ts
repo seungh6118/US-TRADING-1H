@@ -4,10 +4,12 @@ import { getOvernightDashboardData } from "@/services/overnight-research-service
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ data: getOvernightDashboardData() });
+  const data = await getOvernightDashboardData();
+  return NextResponse.json({ data });
 }
 
 export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => ({}))) as { settings?: Record<string, unknown> };
-  return NextResponse.json({ data: getOvernightDashboardData(payload.settings) });
+  const data = await getOvernightDashboardData(payload.settings);
+  return NextResponse.json({ data });
 }

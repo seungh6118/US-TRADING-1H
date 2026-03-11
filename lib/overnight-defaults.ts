@@ -8,7 +8,7 @@ export const defaultOvernightSettings: OvernightSettings = {
   onlyAGrade: false,
   excludeUpcomingEarnings: true,
   allowPostMarket: true,
-  autoRefreshSeconds: 45,
+  autoRefreshSeconds: 60,
   weights: {
     liquidity: 20,
     intradayStrength: 25,
@@ -17,7 +17,7 @@ export const defaultOvernightSettings: OvernightSettings = {
     nextDayRealizability: 10
   },
   newsWeightMultiplier: 1,
-  sectorWeightMultiplier: 1,
+  sectorWeightMultiplier: 1
 };
 
 export function normalizeOvernightSettings(input?: Partial<OvernightSettings>): OvernightSettings {

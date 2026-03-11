@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { dbConfig } from "@/lib/config";
 import { SavedWatchlistItem, WatchlistSnapshotItem } from "@/lib/types";
+import { StoredOvernightSnapshot } from "@/lib/overnight-types";
 
 type SnapshotRecord = WatchlistSnapshotItem & { universe: string };
 
 type DbState = {
   savedWatchlist: SavedWatchlistItem[];
   snapshots: SnapshotRecord[];
+  overnightSnapshots: StoredOvernightSnapshot[];
 };
 
 declare global {
@@ -16,22 +17,19 @@ declare global {
 }
 
 function resolveDbPath(): string {
-  const configured = process.env[dbConfig.envPathKey]?.trim();
+  const configured = process.env.APP_DB_PATH?.trim();
   if (configured) {
     return path.resolve(configured);
   }
 
-  return path.join(process.cwd(), dbConfig.fallbackRelativePath);
+  return path.join(process.cwd(), "db/data/stock-research.json");
 }
 
 function seedState(): DbState {
   return {
-    savedWatchlist: [
-      { ticker: "NVDA", note: "AI 리더", createdAt: new Date().toISOString() },
-      { ticker: "VRT", note: "전력 체인", createdAt: new Date().toISOString() },
-      { ticker: "PANW", note: "사이버보안 리셋", createdAt: new Date().toISOString() }
-    ],
-    snapshots: []
+    savedWatchlist: [],
+    snapshots: [],
+    overnightSnapshots: []
   };
 }
 
@@ -49,7 +47,8 @@ function ensureStateFile(dbPath: string): DbState {
     const parsed = JSON.parse(raw) as Partial<DbState>;
     return {
       savedWatchlist: parsed.savedWatchlist ?? seedState().savedWatchlist,
-      snapshots: parsed.snapshots ?? []
+      snapshots: parsed.snapshots ?? [],
+      overnightSnapshots: parsed.overnightSnapshots ?? []
     };
   } catch {
     const state = seedState();
@@ -80,6 +79,6 @@ export function getDbInfo() {
   const pathValue = resolveDbPath();
   return {
     path: pathValue,
-    persistentStorageConfigured: Boolean(process.env[dbConfig.envPathKey]?.trim())
+    persistentStorageConfigured: Boolean(process.env.APP_DB_PATH?.trim())
   };
 }

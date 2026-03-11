@@ -5,8 +5,8 @@ import { getOvernightCandidateDetail } from "@/services/overnight-research-servi
 
 export const dynamic = "force-dynamic";
 
-export default function StockDetailPage({ params }: { params: { ticker: string } }) {
-  const candidate = getOvernightCandidateDetail(params.ticker, defaultOvernightSettings);
+export default async function StockDetailPage({ params }: { params: { ticker: string } }) {
+  const candidate = await getOvernightCandidateDetail(params.ticker, defaultOvernightSettings);
 
   if (!candidate) {
     notFound();

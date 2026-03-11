@@ -1,7 +1,11 @@
-﻿import { appConfig } from "@/lib/config";
+const APP_TIMEZONE = "Asia/Seoul";
 
 export function clamp(value: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, value));
+}
+
+export function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 export function formatCurrency(value: number, digits = 2): string {
@@ -26,7 +30,7 @@ export function formatPercent(value: number, digits = 1): string {
 
 export function formatDate(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: appConfig.timezone,
+    timeZone: APP_TIMEZONE,
     month: "long",
     day: "numeric"
   }).format(new Date(value));
@@ -34,7 +38,7 @@ export function formatDate(value: string): string {
 
 export function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: appConfig.timezone,
+    timeZone: APP_TIMEZONE,
     month: "long",
     day: "numeric",
     hour: "numeric",
@@ -50,14 +54,7 @@ export function getDateOffset(days: number): string {
 }
 
 export function getLocalIsoDate(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: appConfig.timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  })
-    .format(new Date())
-    .replaceAll("/", "-");
+  return toIsoDateInTimezone(new Date(), APP_TIMEZONE);
 }
 
 export function daysUntil(date: string | null): number {
@@ -66,7 +63,7 @@ export function daysUntil(date: string | null): number {
   }
 
   const target = new Date(date).getTime();
-  const now = new Date().getTime();
+  const now = Date.now();
   return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
 }
 
@@ -78,28 +75,38 @@ export function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+export function sum(values: number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
 export function movingAverage(values: number[], window: number): number {
-  const slice = values.slice(-window);
-  return average(slice);
+  return average(values.slice(-window));
+}
+
+export function toIsoDateInTimezone(value: Date | string, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  })
+    .format(new Date(value))
+    .replaceAll("/", "-");
+}
+
+export function formatClockInTimezone(value: Date | string, timezone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+    month: "short",
+    day: "numeric"
+  }).format(new Date(value));
 }
 
 export function pseudoRandom(seed: string): number {
-  const hash = seed.split("").reduce((total, char, index) => {
-    return total + char.charCodeAt(0) * (index + 17);
-  }, 0);
-
+  const hash = seed.split("").reduce((total, char, index) => total + char.charCodeAt(0) * (index + 17), 0);
   const sine = Math.sin(hash) * 10000;
   return sine - Math.floor(sine);
-}
-
-export function scoreToSignal(score: number): "strong" | "balanced" | "weak" {
-  if (score >= 75) {
-    return "strong";
-  }
-
-  if (score >= 55) {
-    return "balanced";
-  }
-
-  return "weak";
 }

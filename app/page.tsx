@@ -3,7 +3,7 @@ import { getOvernightDashboardData } from "@/services/overnight-research-service
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
-  const data = getOvernightDashboardData();
+export default async function HomePage() {
+  const data = await getOvernightDashboardData();
   return <OvernightDashboardClient initialData={data} />;
 }

@@ -47,12 +47,12 @@ export function OvernightSettingsClient() {
   return (
     <AppShell
       title="종가베팅 설정"
-      subtitle="기본 필터, 뉴스/섹터 가중치, 실적 제외 여부, 포스트마켓 허용 여부까지 전략에 맞게 조정할 수 있습니다."
+      subtitle="기본 필터, 뉴스/섹터 가중치, 실적 제외 여부, 포스트마켓 허용 여부까지 직접 조정할 수 있습니다."
       right={
         <div className="hero-stat">
           <p className="label">가중치 합계</p>
           <p className="mt-2 text-4xl font-semibold text-white">{totalWeight}</p>
-          <p className="mt-2 text-sm text-slate-300">100을 권장하지만, 실험용으로 다르게 둘 수도 있습니다.</p>
+          <p className="mt-2 text-sm text-slate-300">총점 100 기준에 맞추는 편이 읽기 쉽지만, 전략 성향에 따라 다르게 둘 수도 있습니다.</p>
           {saved ? (
             <div className="mt-4">
               <Tag tone="positive">저장 완료</Tag>
@@ -62,7 +62,7 @@ export function OvernightSettingsClient() {
       }
     >
       <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-        <SectionCard title="기본 필터" subtitle="MVP 기본 스캔 조건입니다.">
+        <SectionCard title="기본 필터" subtitle="오버나이트 종가베팅에 필요한 최소 유동성 기준입니다.">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm text-slate-300">
               <span className="mb-1 block">최소 주가</span>
@@ -92,7 +92,7 @@ export function OvernightSettingsClient() {
               />
             </label>
             <label className="text-sm text-slate-300">
-              <span className="mb-1 block">최소 시총(B)</span>
+              <span className="mb-1 block">최소 시가총액(B)</span>
               <input
                 type="number"
                 value={settings.minMarketCapBn}
@@ -103,7 +103,7 @@ export function OvernightSettingsClient() {
           </div>
         </SectionCard>
 
-        <SectionCard title="전략 토글" subtitle="실적 일정과 포스트마켓 허용 여부를 빠르게 켜고 끌 수 있습니다.">
+        <SectionCard title="운용 옵션" subtitle="실적 일정과 포스트마켓 허용 여부를 빠르게 켜고 끌 수 있습니다.">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="flex items-center gap-2 rounded-[18px] border border-white/8 bg-black/10 px-3 py-2.5 text-sm text-slate-300">
               <input
@@ -141,7 +141,7 @@ export function OvernightSettingsClient() {
           </div>
         </SectionCard>
 
-        <SectionCard title="가중치 조정" subtitle="총점 100 기준이지만, 실험을 위해 직접 바꿀 수 있습니다.">
+        <SectionCard title="점수 가중치" subtitle="총점 100 기준으로 보되, 전략 성향에 맞게 직접 조정할 수 있습니다.">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {Object.entries(settings.weights).map(([key, value]) => (
               <label key={key} className="text-sm text-slate-300">
@@ -163,7 +163,7 @@ export function OvernightSettingsClient() {
               </label>
             ))}
             <label className="text-sm text-slate-300">
-              <span className="mb-1 block">뉴스 가중치 배수</span>
+              <span className="mb-1 block">뉴스 가중 배수</span>
               <input
                 type="number"
                 step="0.1"
@@ -173,7 +173,7 @@ export function OvernightSettingsClient() {
               />
             </label>
             <label className="text-sm text-slate-300">
-              <span className="mb-1 block">섹터 가중치 배수</span>
+              <span className="mb-1 block">섹터 가중 배수</span>
               <input
                 type="number"
                 step="0.1"

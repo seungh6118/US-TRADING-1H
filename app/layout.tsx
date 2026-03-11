@@ -18,7 +18,7 @@ const monoFont = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "미국주식 종가베팅 스코어링",
-  description: "장마감 직전 오버나이트 갭 플레이 종목을 선별하는 AI 기반 종가베팅 전용 웹앱입니다."
+  description: "장마감 직전 오버나이트 갭 플레이 후보를 실시간 가격, 뉴스, 애프터마켓 데이터로 점수화하는 웹앱입니다."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

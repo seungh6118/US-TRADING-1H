@@ -11,6 +11,8 @@ export type CatalystTag =
   | "dilution"
   | "litigation"
   | "downgrade";
+export type OvernightDataMode = "live" | "mock";
+export type OvernightMarketTone = "risk-on" | "balanced" | "risk-off";
 
 export interface OvernightSettings {
   minPrice: number;
@@ -40,6 +42,30 @@ export interface OvernightNewsItem {
   sentiment: SentimentTone;
   catalyst: CatalystTag;
   summary: string;
+  url: string;
+  relatedTickers: string[];
+}
+
+export interface OvernightBacktestTrade {
+  signalDate: string;
+  close: number;
+  nextOpen: number;
+  nextHigh: number;
+  nextClose: number;
+  gapPct: number;
+  maxGainPct: number;
+  nextClosePct: number;
+}
+
+export interface OvernightBacktestSummary {
+  lookbackSessions: number;
+  sampleSize: number;
+  gapUpRatePct: number;
+  targetHitRatePct: number;
+  averageGapPct: number;
+  averageMaxGainPct: number;
+  averageNextClosePct: number;
+  recentTrades: OvernightBacktestTrade[];
 }
 
 export interface OvernightRawCandidate {
@@ -47,6 +73,7 @@ export interface OvernightRawCandidate {
   companyName: string;
   sector: string;
   industry: string;
+  universeTags: string[];
   price: number;
   dayChangePct: number;
   dayHigh: number;
@@ -81,7 +108,9 @@ export interface OvernightRawCandidate {
   supportLevel: number;
   resistanceLevel: number;
   postMarketSuitability: PostMarketSuitability;
+  marketState: string;
   news: OvernightNewsItem[];
+  backtest: OvernightBacktestSummary;
 }
 
 export interface OvernightScoreBreakdown {
@@ -105,6 +134,7 @@ export interface OvernightCandidate {
   companyName: string;
   sector: string;
   industry: string;
+  universeTags: string[];
   price: number;
   dayChangePct: number;
   afterHoursChangePct: number;
@@ -124,6 +154,7 @@ export interface OvernightCandidate {
   supportLevel: number;
   resistanceLevel: number;
   postMarketSuitability: PostMarketSuitability;
+  marketState: string;
   score: OvernightScoreBreakdown;
   reasons: string[];
   risks: string[];
@@ -134,28 +165,82 @@ export interface OvernightCandidate {
   closeTapeNote: string;
   overnightRiskNote: string;
   news: OvernightNewsItem[];
+  backtest: OvernightBacktestSummary;
 }
 
 export interface OvernightMarketBrief {
   timestampLabel: string;
-  marketTone: "risk-on" | "balanced" | "risk-off";
+  marketTone: OvernightMarketTone;
   closeCountdownMinutes: number;
   summary: string;
+  indexFlow: string[];
   sectorLeaders: string[];
+  weakGroups: string[];
   riskFlags: string[];
+  standoutTickers: string[];
 }
 
 export interface OvernightAlert {
   id: string;
   title: string;
   detail: string;
+  severity: "high" | "medium" | "low";
+}
+
+export interface OvernightDataStatus {
+  mode: OvernightDataMode;
+  provider: string;
+  warning: string | null;
+  notes: string[];
+  lastSuccessfulAt: string;
+}
+
+export interface StoredOvernightSnapshotCandidate {
+  ticker: string;
+  companyName: string;
+  close: number;
+  score: number;
+  grade: OvernightGrade;
+  postMarketSuitability: PostMarketSuitability;
+}
+
+export interface StoredOvernightSnapshot {
+  id: string;
+  sessionDate: string;
+  recordedAt: string;
+  candidates: StoredOvernightSnapshotCandidate[];
+}
+
+export interface OvernightStrategyBacktestResult {
+  snapshotId: string;
+  sessionDate: string;
+  ticker: string;
+  close: number;
+  nextOpen: number;
+  nextHigh: number;
+  nextClose: number;
+  gapPct: number;
+  highPct: number;
+  closePct: number;
+}
+
+export interface OvernightStrategyBacktest {
+  completedTrades: number;
+  gapWinRatePct: number;
+  averageGapPct: number;
+  averageHighPct: number;
+  averageClosePct: number;
+  recentResults: OvernightStrategyBacktestResult[];
 }
 
 export interface OvernightDashboardData {
   generatedAt: string;
+  status: OvernightDataStatus;
   marketBrief: OvernightMarketBrief;
   settings: OvernightSettings;
   candidates: OvernightCandidate[];
   topCandidates: OvernightCandidate[];
   alerts: OvernightAlert[];
+  universeCount: number;
+  strategyBacktest: OvernightStrategyBacktest | null;
 }

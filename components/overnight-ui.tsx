@@ -24,7 +24,7 @@ export function AppShell({
               <Link href="/settings" className="pill">
                 설정
               </Link>
-              <span className="pill">미국장 마감 10~15분 전 전용</span>
+              <span className="pill">미국장 마감 10~15분 전략</span>
             </div>
             <h1 className="max-w-4xl text-4xl leading-tight text-slate-50 sm:text-5xl lg:text-[3.15rem]">{title}</h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-slate-200/90">{subtitle}</p>
@@ -52,7 +52,7 @@ export function SectionCard({
     <section className="panel p-5 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-4 border-b border-white/6 pb-4">
         <div className="min-w-0">
-          <p className="label">패널</p>
+          <p className="label">섹션</p>
           <h2 className="panel-title mt-2">{title}</h2>
           {subtitle ? <p className="panel-subtitle">{subtitle}</p> : null}
         </div>
