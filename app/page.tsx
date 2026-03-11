@@ -1,9 +1,5 @@
-import { OvernightDashboardClient } from "@/components/overnight-dashboard-client";
-import { getOvernightDashboardData } from "@/services/overnight-research-service";
+import { OvernightDashboardBootClient } from "@/components/overnight-dashboard-boot-client";
 
-export const dynamic = "force-dynamic";
-
-export default async function HomePage() {
-  const data = await getOvernightDashboardData();
-  return <OvernightDashboardClient initialData={data} />;
+export default function HomePage() {
+  return <OvernightDashboardBootClient />;
 }

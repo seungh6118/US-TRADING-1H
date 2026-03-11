@@ -256,16 +256,60 @@ function buildNewsScores(news: OvernightNewsItem[], analystRating: string | null
   };
 }
 
+const marketTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: overnightRuntime.marketTimezone,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
+
+function getMarketTimeParts(timestamp: number) {
+  const parts = Object.fromEntries(
+    marketTimeFormatter
+      .formatToParts(new Date(timestamp * 1000))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return {
+    sessionDate: `${parts.year}-${parts.month}-${parts.day}`,
+    minuteOfDay: Number(parts.hour) * 60 + Number(parts.minute)
+  };
+}
+
+function getMarketSessionDate(timestamp: number) {
+  return getMarketTimeParts(timestamp).sessionDate;
+}
+
+function getMarketMinuteOfDay(timestamp: number) {
+  return getMarketTimeParts(timestamp).minuteOfDay;
+}
+
 function filterRegularBars(chart: YahooChartData) {
-  return chart.regularStart && chart.regularEnd
-    ? chart.bars.filter((bar) => bar.time >= chart.regularStart! && bar.time <= chart.regularEnd!)
-    : chart.bars;
+  if (chart.bars.length === 0) {
+    return [];
+  }
+
+  const sessionDate = getMarketSessionDate(chart.bars.at(-1)!.time);
+  return chart.bars.filter((bar) => {
+    const marketTime = getMarketMinuteOfDay(bar.time);
+    return getMarketSessionDate(bar.time) === sessionDate && marketTime >= 570 && marketTime <= 960;
+  });
 }
 
 function filterPostBars(chart: YahooChartData) {
-  return chart.postStart && chart.postEnd
-    ? chart.bars.filter((bar) => bar.time >= chart.postStart! && bar.time <= chart.postEnd!)
-    : [];
+  if (chart.bars.length === 0) {
+    return [];
+  }
+
+  const sessionDate = getMarketSessionDate(chart.bars.at(-1)!.time);
+  return chart.bars.filter((bar) => {
+    const marketTime = getMarketMinuteOfDay(bar.time);
+    return getMarketSessionDate(bar.time) === sessionDate && marketTime > 960 && marketTime <= 1200;
+  });
 }
 
 function computeVwap(bars: Array<{ high: number; low: number; close: number; volume: number }>) {
@@ -749,7 +793,7 @@ async function collectLiveCandidates(
   getSectorMomentum: Awaited<ReturnType<typeof buildSectorMomentumGetter>>
 ) {
   const results: OvernightRawCandidate[] = [];
-  const batchSize = 4;
+  const batchSize = 8;
 
   for (let index = 0; index < seeds.length; index += batchSize) {
     const batch = seeds.slice(index, index + batchSize);

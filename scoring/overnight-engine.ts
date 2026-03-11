@@ -1,10 +1,12 @@
 import { clamp, formatCurrency, round1 } from "@/lib/utils";
 import {
+  CatalystTag,
   OvernightCandidate,
   OvernightGrade,
   OvernightRawCandidate,
   OvernightScoreBreakdown,
-  OvernightSettings
+  OvernightSettings,
+  PostMarketSuitability
 } from "@/lib/overnight-types";
 
 function scale(value: number, min: number, max: number): number {
@@ -48,20 +50,268 @@ function gradeFor(total: number): OvernightGrade {
   return "Excluded";
 }
 
+function signedPercent(value: number, digits = 1) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
+}
+
+function catalystLabel(tag: CatalystTag) {
+  switch (tag) {
+    case "earnings":
+      return "실적";
+    case "guidance":
+      return "가이던스";
+    case "contract":
+      return "계약/수주";
+    case "policy":
+      return "정책";
+    case "analyst":
+      return "애널리스트 상향";
+    case "theme":
+      return "테마";
+    case "dilution":
+      return "희석";
+    case "litigation":
+      return "소송/규제";
+    case "downgrade":
+      return "하향";
+    default:
+      return "재료";
+  }
+}
+
+function suitabilityLabel(value: PostMarketSuitability) {
+  if (value === "ideal") {
+    return "높음";
+  }
+  if (value === "allowed") {
+    return "보통";
+  }
+  return "낮음";
+}
+
+function strongestCatalyst(raw: OvernightRawCandidate) {
+  if ((raw.earningsSurpriseScore >= 25 || raw.guidanceScore >= 25) && raw.afterHoursChangePct > 1) {
+    return {
+      tag: "earnings" as const,
+      label: "실적/가이던스",
+      score: Math.max(raw.earningsSurpriseScore, raw.guidanceScore)
+    };
+  }
+
+  const entries = [
+    { tag: "earnings" as const, label: "실적 서프라이즈", score: raw.earningsSurpriseScore },
+    { tag: "guidance" as const, label: "가이던스 상향", score: raw.guidanceScore },
+    { tag: "contract" as const, label: "대형 계약/수주", score: raw.contractScore },
+    { tag: "policy" as const, label: "정책 수혜", score: raw.policyScore },
+    { tag: "analyst" as const, label: "애널리스트 상향", score: raw.analystScore },
+    { tag: "theme" as const, label: "테마 모멘텀", score: raw.themeScore }
+  ].sort((left, right) => right.score - left.score);
+
+  if (raw.earningsSurpriseScore >= 35 && raw.guidanceScore >= 35) {
+    return {
+      tag: "earnings" as const,
+      label: "실적/가이던스",
+      score: Math.max(raw.earningsSurpriseScore, raw.guidanceScore)
+    };
+  }
+
+  return entries[0];
+}
+
 function buildScenario(candidate: OvernightRawCandidate) {
   const continuationTarget = Math.max(candidate.resistanceLevel, candidate.close * 1.02);
   const bounceTarget = Math.max(candidate.close * 1.006, candidate.supportLevel * 1.02);
   const invalidation = candidate.supportLevel * 0.99;
 
   return {
-    primary: `${formatCurrency(candidate.close)} 부근 종가가 유지되고 익일 초반 거래량이 따라오면 ${formatCurrency(
+    primary: `${formatCurrency(candidate.close)} 부근 종가가 유지되고 시초 거래대금이 붙으면 ${formatCurrency(
       continuationTarget
     )} 테스트 시나리오입니다.`,
-    alternate: `${formatCurrency(candidate.supportLevel)} 지지 확인 뒤 반등하면 ${formatCurrency(
+    alternate: `${formatCurrency(candidate.supportLevel)} 지지를 확인한 뒤 반등하면 ${formatCurrency(
       bounceTarget
-    )}까지 짧게 보는 보수적 시나리오입니다.`,
-    exitPlan: `익일 시초가가 강하면 ${formatCurrency(candidate.resistanceLevel)} 근처 1차 청산, 시가가 약하면 5분 VWAP 이탈 시 빠르게 정리하는 구조가 적합합니다.`
+    )}까지 보는 보수적 시나리오입니다.`,
+    exitPlan: `${formatCurrency(candidate.resistanceLevel)} 부근 1차 청산, 시초가가 밀리면 5분 VWAP 이탈 시 빠르게 정리하는 구조가 좋습니다. 무효화 레벨은 ${formatCurrency(
+      invalidation
+    )}입니다.`
   };
+}
+
+function buildReasonList(
+  raw: OvernightRawCandidate,
+  positiveNewsCount: number,
+  closeToHighPct: number,
+  closeAboveVWAPPct: number
+) {
+  const strongest = strongestCatalyst(raw);
+  const items: Array<{ weight: number; text: string }> = [];
+
+  if (raw.afterHoursChangePct >= 1.5) {
+    const eventLabel =
+      raw.earningsSurpriseScore >= 30 || raw.guidanceScore >= 30 ? "실적/가이던스" : strongest.label;
+    items.push({
+      weight: 200 + raw.afterHoursChangePct * 4,
+      text: `장후 ${eventLabel} 반응으로 애프터마켓 ${signedPercent(raw.afterHoursChangePct)}, 포스트마켓 매수 적합도는 ${suitabilityLabel(
+        raw.postMarketSuitability
+      )}입니다.`
+    });
+  }
+
+  if (positiveNewsCount > 0 || strongest.score >= 55) {
+    items.push({
+      weight: 120 + strongest.score * 0.7,
+      text:
+        positiveNewsCount > 0
+          ? `긍정 뉴스 ${positiveNewsCount}건이 붙었고 핵심 재료는 ${strongest.label}입니다.`
+          : `오늘 핵심 재료는 ${strongest.label}이며 재료 점수가 상위권입니다.`
+    });
+  }
+
+  if (raw.rvol20 >= 1.15 || raw.close30mVolumeRatio >= 1.2 || raw.afterHoursVolumeRatio >= 0.015) {
+    items.push({
+      weight: 95 + raw.rvol20 * 12 + raw.close30mVolumeRatio * 8,
+      text: `RVOL ${raw.rvol20.toFixed(2)}배, 마감 30분 거래량 ${raw.close30mVolumeRatio.toFixed(
+        2
+      )}배로 종가 직전 수급이 살아 있습니다.`
+    });
+  }
+
+  if (closeAboveVWAPPct >= 0.15 || closeToHighPct <= 1.8 || raw.closeStrength30m >= 0.4) {
+    items.push({
+      weight: 90 + Math.max(raw.closeStrength30m, 0) * 12 + Math.max(closeAboveVWAPPct, 0) * 10,
+      text: `종가가 VWAP 대비 ${signedPercent(closeAboveVWAPPct)}, 당일 고가 대비 ${closeToHighPct.toFixed(
+        1
+      )}% 아래에서 마감해 장막판 강도가 유지됐습니다.`
+    });
+  }
+
+  if (raw.averageDollarVolumeM >= 150 || (raw.marketCapBn >= 20 && raw.spreadBps <= 25)) {
+    items.push({
+      weight: 88 + Math.min(raw.averageDollarVolumeM / 40, 20),
+      text: `평균 거래대금 ${raw.averageDollarVolumeM.toFixed(0)}M달러, 스프레드 ${raw.spreadBps.toFixed(
+        0
+      )}bp 수준이라 익일 시초 청산 구조가 비교적 깔끔합니다.`
+    });
+  }
+
+  if (raw.backtest.sampleSize >= 5 && (raw.backtest.gapUpRatePct >= 55 || raw.backtest.averageMaxGainPct >= 1.2)) {
+    items.push({
+      weight: 78 + raw.backtest.gapUpRatePct * 0.35,
+      text: `최근 ${raw.backtest.sampleSize}회 프록시 백테스트에서 갭업 확률 ${raw.backtest.gapUpRatePct.toFixed(
+        0
+      )}%, 평균 익일 고점 ${signedPercent(raw.backtest.averageMaxGainPct)}로 재현성이 나쁘지 않았습니다.`
+    });
+  }
+
+  if (raw.sectorMomentumScore >= 68) {
+    items.push({
+      weight: 72 + raw.sectorMomentumScore * 0.25,
+      text: `${raw.sector} 섹터 모멘텀 점수 ${raw.sectorMomentumScore.toFixed(0)}점으로 업종 바람도 우호적입니다.`
+    });
+  }
+
+  const deduped = items
+    .sort((left, right) => right.weight - left.weight)
+    .filter((item, index, array) => array.findIndex((candidate) => candidate.text === item.text) === index)
+    .slice(0, 3)
+    .map((item) => item.text);
+
+  while (deduped.length < 3) {
+    deduped.push(`${raw.sector} / ${raw.industry} 흐름 안에서 단기 오버나이트 후보 조건을 충족하고 있습니다.`);
+  }
+
+  return deduped;
+}
+
+function buildRiskList(
+  raw: OvernightRawCandidate,
+  earningsRiskDays: number,
+  negativeNewsCount: number,
+  closeAboveVWAPPct: number
+) {
+  const items: Array<{ weight: number; text: string }> = [];
+
+  if (raw.dayChangePct < 0 || closeAboveVWAPPct < 0) {
+    items.push({
+      weight: 120,
+      text: `정규장은 ${signedPercent(raw.dayChangePct)}였고 VWAP 대비 ${signedPercent(
+        closeAboveVWAPPct
+      )}라서, 장후 강세가 내일 본장까지 이어지는지 확인이 필요합니다.`
+    });
+  }
+
+  if (earningsRiskDays <= 3) {
+    items.push({
+      weight: 115,
+      text: `실적 발표가 ${earningsRiskDays}일 안에 잡혀 있어 방향성보다 변동성 리스크가 더 커질 수 있습니다.`
+    });
+  }
+
+  if (raw.distanceToResistancePct <= 3.5) {
+    items.push({
+      weight: 95,
+      text: `직전 일봉 저항까지 ${raw.distanceToResistancePct.toFixed(1)}%밖에 남지 않아 시초 급등이 바로 매물대와 부딪힐 수 있습니다.`
+    });
+  }
+
+  if (negativeNewsCount > 0 || raw.negativeHeadlinePenalty >= 20) {
+    items.push({
+      weight: 92,
+      text: `부정 뉴스 ${negativeNewsCount}건이 남아 있어 갭 상승 후 눌림이 생각보다 빨리 나올 수 있습니다.`
+    });
+  }
+
+  if (raw.postMarketSuitability !== "ideal" || raw.spreadBps > 30) {
+    items.push({
+      weight: 82,
+      text: `포스트마켓 적합도는 ${suitabilityLabel(raw.postMarketSuitability)}이고 스프레드 ${raw.spreadBps.toFixed(
+        0
+      )}bp라 체결 품질을 꼭 확인해야 합니다.`
+    });
+  }
+
+  if (raw.backtest.sampleSize < 5) {
+    items.push({
+      weight: 70,
+      text: "백테스트 표본이 아직 적어 과거 통계는 참고용으로만 봐야 합니다."
+    });
+  } else {
+    items.push({
+      weight: 64,
+      text: `최근 ${raw.backtest.sampleSize}회 기준 평균 갭은 ${signedPercent(
+        raw.backtest.averageGapPct
+      )}라 기대치를 과하게 잡기보다 시초 강도 확인이 중요합니다.`
+    });
+  }
+
+  const deduped = items
+    .sort((left, right) => right.weight - left.weight)
+    .filter((item, index, array) => array.findIndex((candidate) => candidate.text === item.text) === index)
+    .slice(0, 3)
+    .map((item) => item.text);
+
+  while (deduped.length < 3) {
+    deduped.push("갭 상승이 나와도 시초 5분 안에 수급이 약해지면 종가베팅 효율이 급격히 떨어질 수 있습니다.");
+  }
+
+  return deduped;
+}
+
+function buildCoreSummary(raw: OvernightRawCandidate, positiveNewsCount: number) {
+  const strongest = strongestCatalyst(raw);
+
+  if (raw.afterHoursChangePct >= 2) {
+    return `${strongest.label} 반응으로 장후 강세가 붙은 ${raw.sector} 종목입니다. 내일 갭/시초 모멘텀 연결 여부를 보는 자리입니다.`;
+  }
+
+  if (raw.rvol20 >= 1.2 && raw.close30mVolumeRatio >= 1.2) {
+    return `마감 직전 거래량과 체결 강도가 살아 있는 ${raw.sector} 종목입니다. 2~3일 오버나이트 관점에서 볼 만합니다.`;
+  }
+
+  if (positiveNewsCount > 0) {
+    return `긍정 뉴스와 업종 모멘텀이 겹친 ${raw.sector} 종목입니다. 재료가 다음 날 갭으로 이어질지 점검하는 자리입니다.`;
+  }
+
+  return `${raw.sector} / ${raw.industry} 흐름 안에서 유동성과 단기 수급 조건이 살아 있는 종가베팅 후보입니다.`;
 }
 
 export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: OvernightSettings): OvernightCandidate {
@@ -74,7 +324,7 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
     invertScale(raw.spreadBps, 8, 60) * 0.2;
   const liquidity = weightedCategoryScore(liquidityNormalized, settings.weights.liquidity, 28, 0.72);
 
-  const closeToHighPct = clamp(((raw.dayHigh - raw.close) / raw.dayHigh) * 100, 0, 100);
+  const closeToHighPct = clamp(raw.dayHigh > 0 ? ((raw.dayHigh - raw.close) / raw.dayHigh) * 100 : 0, 0, 100);
   const closeAboveVWAPPct = raw.vwap > 0 ? ((raw.close - raw.vwap) / raw.vwap) * 100 : 0;
   const intradayNormalized =
     scale(raw.dayChangePct, -2, 12) * 0.36 +
@@ -155,32 +405,6 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
   const positiveNewsCount = raw.news.filter((item) => item.sentiment === "positive").length;
   const negativeNewsCount = raw.news.filter((item) => item.sentiment === "negative").length;
 
-  const reasons = [
-    `당일 ${raw.dayChangePct >= 0 ? "상승" : "하락"} ${raw.dayChangePct.toFixed(1)}%, VWAP 대비 ${
-      closeAboveVWAPPct >= 0 ? "+" : ""
-    }${closeAboveVWAPPct.toFixed(1)}%로 종가 강도가 유지됐습니다.`,
-    `RVOL ${raw.rvol20.toFixed(2)}배, 마감 30분 거래량 ${raw.close30mVolumeRatio.toFixed(
-      2
-    )}배로 종가 직전 수급이 버텼습니다.`,
-    positiveNewsCount > 0
-      ? `오늘 긍정 뉴스 ${positiveNewsCount}건이 붙었고 핵심 재료는 ${raw.news[0]?.catalyst ?? "theme"} 계열입니다.`
-      : `${raw.sector} / ${raw.industry} 흐름과 스크리너 모멘텀이 종가 베팅 점수를 지지합니다.`
-  ];
-
-  const risks = [
-    earningsRiskDays <= 3
-      ? `실적 발표가 ${earningsRiskDays}일 안에 있어 익일 갭 방향보다 변동성 리스크가 더 커질 수 있습니다.`
-      : `직전 일봉 저항까지 ${raw.distanceToResistancePct.toFixed(1)}% 남아 있어 시초가가 약하면 바로 매물 저항을 만날 수 있습니다.`,
-    negativeNewsCount > 0
-      ? `부정 뉴스 ${negativeNewsCount}건이 남아 있어 갭 상승 후 되밀림 가능성을 열어둬야 합니다.`
-      : `포스트마켓 적합도는 ${raw.postMarketSuitability} 단계이며 스프레드 ${raw.spreadBps.toFixed(0)}bp는 체크가 필요합니다.`,
-    raw.backtest.sampleSize >= 5
-      ? `최근 ${raw.backtest.sampleSize}회 프록시 백테스트 기준 평균 갭 ${raw.backtest.averageGapPct.toFixed(
-          1
-        )}%입니다. 기대값이 과장되지 않게 봐야 합니다.`
-      : "백테스트 표본이 적어 과거 통계는 참고용으로만 해석해야 합니다."
-  ];
-
   return {
     ticker: raw.ticker,
     companyName: raw.companyName,
@@ -208,19 +432,30 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
     postMarketSuitability: raw.postMarketSuitability,
     marketState: raw.marketState,
     score,
-    reasons,
-    risks,
-    coreSummary: `${raw.sector} 내 ${raw.industry} 흐름과 종가 직전 체결 강도가 함께 살아 있어 2~3일 오버나이트 후보로 볼 수 있습니다.`,
+    reasons: buildReasonList(raw, positiveNewsCount, closeToHighPct, closeAboveVWAPPct),
+    risks: buildRiskList(raw, earningsRiskDays, negativeNewsCount, closeAboveVWAPPct),
+    coreSummary: buildCoreSummary(raw, positiveNewsCount),
     scenario: buildScenario(raw),
-    entryIdea: `${formatCurrency(raw.close)} 부근에서 종가 지지가 유지되고 포스트마켓 체결이 급격히 얇아지지 않을 때만 진입하는 보수적 접근이 적합합니다.`,
-    exitIdea: `익일 시초 갭이 강하면 ${formatCurrency(raw.resistanceLevel)} 부근 1차 청산, 시가가 약하면 초기 5분 VWAP 이탈 시 빠르게 정리하는 방식이 좋습니다.`,
-    closeTapeNote: `종가-고가 거리 ${closeToHighPct.toFixed(1)}%, 마감 30분 강도 ${raw.closeStrength30m.toFixed(
-      1
-    )}%, 마감 구간 거래량 ${raw.close30mVolumeRatio.toFixed(2)}배입니다.`,
-    overnightRiskNote: `애프터마켓 ${raw.afterHoursChangePct >= 0 ? "+" : ""}${raw.afterHoursChangePct.toFixed(
-      1
-    )}%, 다음 실적까지 ${earningsRiskDays}일, 직전 저항까지 ${raw.distanceToResistancePct.toFixed(1)}%입니다.`,
-    news: raw.news,
+    entryIdea: `${formatCurrency(raw.close)} 부근 종가가 유지되고 장후 체결이 크게 꺾이지 않을 때만 진입하는 보수적 접근이 좋습니다.`,
+    exitIdea: `익일 시초 강세가 나오면 ${formatCurrency(raw.resistanceLevel)} 부근 1차 청산, 시초 5분 VWAP 이탈 시 빠르게 정리하는 방식이 좋습니다.`,
+    closeTapeNote: `종가-고가 거리 ${closeToHighPct.toFixed(1)}%, 마감 30분 강도 ${signedPercent(
+      raw.closeStrength30m
+    )}, 마감 구간 거래량 ${raw.close30mVolumeRatio.toFixed(2)}배입니다.`,
+    overnightRiskNote:
+      earningsRiskDays <= 30
+        ? `애프터마켓 ${signedPercent(raw.afterHoursChangePct)}, 다음 실적까지 ${earningsRiskDays}일, 직전 저항까지 ${raw.distanceToResistancePct.toFixed(
+            1
+          )}%입니다.`
+        : `애프터마켓 ${signedPercent(raw.afterHoursChangePct)}, 직전 저항까지 ${raw.distanceToResistancePct.toFixed(
+            1
+          )}%이며 단기 실적 일정 리스크는 크지 않습니다.`,
+    news: raw.news.map((item) => ({
+      ...item,
+      summary:
+        item.summary && item.summary.trim().length > 0
+          ? item.summary
+          : `${catalystLabel(item.catalyst)} 재료로 분류한 기사입니다.`
+    })),
     backtest: raw.backtest
   };
 }
