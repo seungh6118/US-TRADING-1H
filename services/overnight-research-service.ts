@@ -472,7 +472,7 @@ async function buildLiveUniverseSeeds() {
   });
 
   const rankedScreeners = [...merged.values()].sort((left, right) => rankScreenerQuote(right) - rankScreenerQuote(left));
-  const reservedForFocus = Math.min(6, overnightRuntime.maxUniverseSymbols);
+  const reservedForFocus = Math.min(Math.max(12, Math.floor(overnightRuntime.maxUniverseSymbols / 2)), overnightRuntime.maxUniverseSymbols);
   const selected = rankedScreeners.slice(0, Math.max(overnightRuntime.maxUniverseSymbols - reservedForFocus, 0));
   const selectedSymbols = new Set(selected.map((item) => item.symbol));
 
@@ -649,6 +649,27 @@ async function buildLiveCandidate(quoteSeed: YahooScreenedQuote, getSectorMoment
   return raw;
 }
 
+async function collectLiveCandidates(
+  seeds: YahooScreenedQuote[],
+  getSectorMomentum: Awaited<ReturnType<typeof buildSectorMomentumGetter>>
+) {
+  const results: OvernightRawCandidate[] = [];
+  const batchSize = 4;
+
+  for (let index = 0; index < seeds.length; index += batchSize) {
+    const batch = seeds.slice(index, index + batchSize);
+    const settled = await Promise.allSettled(batch.map((seed) => buildLiveCandidate(seed, getSectorMomentum)));
+
+    settled.forEach((result) => {
+      if (result.status === "fulfilled" && result.value) {
+        results.push(result.value);
+      }
+    });
+  }
+
+  return results;
+}
+
 function buildAlerts(candidates: OvernightCandidate[]): OvernightAlert[] {
   const topA = candidates.filter((candidate) => candidate.score.grade === "A").slice(0, 3);
   const postCandidates = candidates.filter((candidate) => candidate.postMarketSuitability === "ideal").slice(0, 3);
@@ -720,16 +741,72 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
 
   const seeds = await buildLiveUniverseSeeds();
   const getSectorMomentum = await buildSectorMomentumGetter();
-  const rawCandidates = (
-    await Promise.allSettled(seeds.map((seed) => buildLiveCandidate(seed, getSectorMomentum)))
-  )
-    .flatMap((result) => (result.status === "fulfilled" ? [result.value] : []))
-    .filter((item): item is OvernightRawCandidate => Boolean(item));
+  const rawCandidates = await collectLiveCandidates(seeds, getSectorMomentum);
+  const loadedSymbols = new Set(rawCandidates.map((candidate) => candidate.ticker));
+  const missingFocusSeeds = seeds.filter((seed) => seed.screeners.includes("focus") && !loadedSymbols.has(seed.symbol));
+
+  for (const seed of missingFocusSeeds) {
+    try {
+      const retried = await buildLiveCandidate(seed, getSectorMomentum);
+      if (retried && !loadedSymbols.has(retried.ticker)) {
+        rawCandidates.push(retried);
+        loadedSymbols.add(retried.ticker);
+      }
+    } catch {
+      // Ignore a second failure and keep the rest of the dashboard responsive.
+    }
+  }
 
   const candidates = rawCandidates
     .map((item) => scoreOvernightCandidate(item, settings))
     .filter((candidate) => passesFilters(candidate, settings))
     .sort((left, right) => right.score.total - left.score.total);
+  const candidateSymbols = new Set(candidates.map((candidate) => candidate.ticker));
+
+  for (const symbol of overnightFocusSymbols) {
+    if (candidateSymbols.has(symbol) || candidates.length >= 10) {
+      continue;
+    }
+
+    try {
+      const raw = await buildLiveCandidate(
+        {
+          symbol,
+          companyName: symbol,
+          price: 0,
+          dayChangePct: 0,
+          dayHigh: 0,
+          dayLow: 0,
+          volume: 0,
+          averageVolume: 0,
+          marketCapBn: 0,
+          bid: null,
+          ask: null,
+          postMarketPrice: null,
+          postMarketChangePct: 0,
+          earningsDate: null,
+          analystRating: null,
+          trailingPe: null,
+          marketState: "REGULAR",
+          screeners: ["focus"]
+        },
+        getSectorMomentum
+      );
+      if (!raw) {
+        continue;
+      }
+
+      const scored = scoreOvernightCandidate(raw, settings);
+      if (passesFilters(scored, settings) && !candidateSymbols.has(scored.ticker)) {
+        candidates.push(scored);
+        candidateSymbols.add(scored.ticker);
+      }
+    } catch {
+      // Ignore focus fallback failures and keep the dashboard available.
+    }
+  }
+
+  candidates.sort((left, right) => right.score.total - left.score.total);
 
   const marketBrief = await buildMarketBrief(candidates, generatedAt);
   const data: OvernightDashboardData = {
@@ -793,5 +870,40 @@ export async function getOvernightDashboardData(settingsInput?: Partial<Overnigh
 
 export async function getOvernightCandidateDetail(ticker: string, settingsInput?: Partial<OvernightSettings>) {
   const data = await getOvernightDashboardData(settingsInput ?? defaultOvernightSettings);
-  return data.candidates.find((candidate) => candidate.ticker === ticker.toUpperCase()) ?? null;
+  const normalizedTicker = ticker.toUpperCase();
+  const existing = data.candidates.find((candidate) => candidate.ticker === normalizedTicker);
+  if (existing) {
+    return existing;
+  }
+
+  if (overnightRuntime.mode === "mock") {
+    return null;
+  }
+
+  const getSectorMomentum = await buildSectorMomentumGetter();
+  const raw = await buildLiveCandidate(
+    {
+      symbol: normalizedTicker,
+      companyName: normalizedTicker,
+      price: 0,
+      dayChangePct: 0,
+      dayHigh: 0,
+      dayLow: 0,
+      volume: 0,
+      averageVolume: 0,
+      marketCapBn: 0,
+      bid: null,
+      ask: null,
+      postMarketPrice: null,
+      postMarketChangePct: 0,
+      earningsDate: null,
+      analystRating: null,
+      trailingPe: null,
+      marketState: "REGULAR",
+      screeners: ["focus"]
+    },
+    getSectorMomentum
+  );
+
+  return raw ? scoreOvernightCandidate(raw, normalizeOvernightSettings(settingsInput)) : null;
 }

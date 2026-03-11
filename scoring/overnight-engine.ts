@@ -98,6 +98,10 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
     (raw.universeTags.includes("growth_technology_stocks") ? 11 : 0) +
     (raw.dayChangePct >= 5 ? 7 : raw.dayChangePct >= 2 ? 4 : 0) +
     (raw.afterHoursChangePct >= 0.5 ? 4 : raw.afterHoursChangePct > 0 ? 2 : 0);
+  const afterHoursEventBonus =
+    (raw.postMarketSuitability === "ideal" ? 6 : raw.postMarketSuitability === "allowed" ? 2 : 0) +
+    (raw.afterHoursChangePct >= 8 ? 18 : raw.afterHoursChangePct >= 5 ? 12 : raw.afterHoursChangePct >= 2 ? 6 : 0) +
+    ((raw.earningsSurpriseScore >= 30 || raw.guidanceScore >= 30) && raw.afterHoursChangePct > 0 ? 10 : 0);
   const catalystNormalized =
     raw.earningsSurpriseScore * 0.18 +
     raw.guidanceScore * 0.14 +
@@ -106,7 +110,8 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
     raw.analystScore * 0.14 +
     raw.themeScore * 0.16 +
     raw.sectorMomentumScore * 0.18 * settings.sectorWeightMultiplier +
-    screenerMomentumBonus -
+    screenerMomentumBonus +
+    afterHoursEventBonus -
     (raw.negativeHeadlinePenalty * 0.11 + raw.dilutionPenalty * 0.08 + raw.litigationPenalty * 0.08) * settings.newsWeightMultiplier;
   const catalystMomentum = weightedCategoryScore(
     clamp(catalystNormalized, 0, 100),
@@ -123,11 +128,12 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
   const nextDayNormalized =
     scale(raw.premarketInterestScore, 45, 95) * 0.26 +
     scale(raw.afterHoursVolumeRatio, 0.0, 0.08) * 0.16 +
-    scale(raw.afterHoursChangePct, -1, 2.5) * 0.1 +
+    scale(raw.afterHoursChangePct, -1, 8) * 0.16 +
     scale(raw.afterHoursSpreadStable, 35, 95) * 0.12 +
     scale(raw.distanceToResistancePct, 1, 9) * 0.14 +
     scale(Math.min(earningsRiskDays, 14), 3, 14) * 0.12 +
-    backtestSignalScore * 0.1;
+    backtestSignalScore * 0.1 +
+    (raw.postMarketSuitability === "ideal" && raw.afterHoursChangePct > 3 ? 10 : 0);
   const nextDayRealizability = weightedCategoryScore(
     clamp(nextDayNormalized, 0, 100),
     settings.weights.nextDayRealizability,

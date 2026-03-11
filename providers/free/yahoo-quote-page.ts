@@ -137,7 +137,7 @@ export async function fetchYahooQuotePageSnapshot(ticker: string): Promise<Yahoo
   }
 
   const html = await response.text();
-  const marketCapRaw = extractMetricValue(html, "Market Cap (intraday)");
+  const marketCapRaw = extractMetricValue(html, "Market Cap (intraday)") ?? extractMetricValue(html, "Market Cap");
   const averageVolumeRaw = extractMetricValue(html, "Avg. Volume");
   const betaRaw = extractMetricValue(html, "Beta (5Y Monthly)");
   const trailingPeRaw = extractMetricValue(html, "PE Ratio (TTM)");
