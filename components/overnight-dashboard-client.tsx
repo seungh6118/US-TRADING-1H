@@ -61,9 +61,9 @@ function marketToneLabel(value: OvernightDashboardData["marketBrief"]["marketTon
   return "중립";
 }
 
-function alertTone(severity: "high" | "medium" | "low") {
+function signalAlertTone(severity: "high" | "medium" | "low") {
   if (severity === "high") {
-    return "danger" as const;
+    return "positive" as const;
   }
   if (severity === "medium") {
     return "caution" as const;
@@ -419,20 +419,38 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
               <p className="label">오늘 해석</p>
               <p className="mt-3 text-sm leading-7 text-slate-100/90">{data.marketBrief.summary}</p>
             </div>
-            <div className="brief-card">
-              <p className="label">리스크 알림</p>
-              <div className="mt-3 space-y-2">
-                {[...data.marketBrief.riskFlags.map((item) => ({ title: item, detail: "", severity: "medium" as const })), ...data.alerts]
-                  .slice(0, 4)
-                  .map((item, index) => (
-                    <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-[16px] border border-white/6 bg-black/10 px-3 py-3">
-                      <Tag tone={alertTone(item.severity)}>{item.severity === "high" ? "강" : item.severity === "medium" ? "중" : "약"}</Tag>
+            <div className="grid gap-3">
+              <div className="brief-card">
+                <p className="label">시그널 알림</p>
+                <div className="mt-3 space-y-2">
+                  {data.alerts.slice(0, 3).map((item) => (
+                    <div key={item.id} className="flex items-start gap-3 rounded-[16px] border border-white/6 bg-black/10 px-3 py-3">
+                      <Tag tone={signalAlertTone(item.severity)}>{item.severity === "high" ? "핵심" : item.severity === "medium" ? "체크" : "참고"}</Tag>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white">{item.title}</p>
-                        {item.detail ? <p className="mt-1 text-sm leading-6 text-slate-300">{item.detail}</p> : null}
+                        <p className="mt-1 text-sm leading-6 text-slate-300">{item.detail}</p>
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="brief-card">
+                <p className="label">체크 리스크</p>
+                <div className="mt-3 space-y-2">
+                  {data.marketBrief.riskFlags.length > 0 ? (
+                    data.marketBrief.riskFlags.slice(0, 3).map((item) => (
+                      <div key={item} className="flex items-start gap-3 rounded-[16px] border border-white/6 bg-black/10 px-3 py-3">
+                        <Tag tone="danger">주의</Tag>
+                        <p className="text-sm leading-6 text-slate-300">{item}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[16px] border border-white/6 bg-black/10 px-3 py-3 text-sm leading-6 text-slate-300">
+                      현재 별도 리스크 플래그는 많지 않습니다. 종목별 상세에서 실적 일정과 포스트마켓 체결만 추가 확인하면 됩니다.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
