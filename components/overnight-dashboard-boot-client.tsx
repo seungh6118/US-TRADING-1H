@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { OvernightDashboardData } from "@/lib/overnight-types";
 import { OvernightDashboardClient } from "@/components/overnight-dashboard-client";
 import { OvernightDashboardLoadingShell } from "@/components/overnight-dashboard-loading-shell";
+import { OvernightIntroSplash } from "@/components/overnight-intro-splash";
 import { AppShell, SectionCard } from "@/components/overnight-ui";
 
 type LoadState =
@@ -12,10 +13,16 @@ type LoadState =
   | { status: "error"; data: null; error: string };
 
 export function OvernightDashboardBootClient() {
+  const [showIntro, setShowIntro] = useState(true);
   const [state, setState] = useState<LoadState>({ status: "loading", data: null, error: null });
 
   useEffect(() => {
     let cancelled = false;
+    const introTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setShowIntro(false);
+      }
+    }, 1400);
 
     async function load() {
       try {
@@ -53,8 +60,13 @@ export function OvernightDashboardBootClient() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(introTimer);
     };
   }, []);
+
+  if (showIntro) {
+    return <OvernightIntroSplash />;
+  }
 
   if (state.status === "ready") {
     return <OvernightDashboardClient initialData={state.data} />;
