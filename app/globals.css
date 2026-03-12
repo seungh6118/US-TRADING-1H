@@ -273,6 +273,30 @@ textarea {
       rgba(6, 15, 23, 0.46);
   }
 
+  .execution-grid {
+    @apply grid gap-4 xl:grid-cols-3;
+  }
+
+  .execution-card {
+    @apply block rounded-[30px] border px-4 py-4 transition duration-200 hover:-translate-y-0.5 sm:px-5 sm:py-5;
+    border-color: rgba(255, 255, 255, 0.08);
+    background:
+      radial-gradient(circle at top left, rgba(140, 244, 212, 0.06), transparent 28%),
+      linear-gradient(180deg, rgba(17, 25, 34, 0.88) 0%, rgba(9, 15, 22, 0.92) 100%);
+  }
+
+  .execution-risk {
+    @apply rounded-[22px] border px-4 py-4;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(3, 10, 18, 0.32);
+  }
+
+  .checkpoint-chip {
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition hover:border-cyan-400/20;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
   .ranking-shell {
     @apply space-y-3;
   }

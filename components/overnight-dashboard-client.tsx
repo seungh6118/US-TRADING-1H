@@ -183,7 +183,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
   }, [data.candidates, onlyA, postMarketOnly, search]);
 
   const topThree = filtered.slice(0, 3);
-  const rankingCandidates = filtered.slice(0, 10);
+  const nearMisses = filtered.slice(3, 7);
   const averageAfterHours =
     topThree.length > 0 ? topThree.reduce((sum, candidate) => sum + candidate.afterHoursChangePct, 0) / topThree.length : 0;
   const strategySummary = data.strategyBacktest;
@@ -459,7 +459,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
         <SectionCard
           title="필터 데스크"
           subtitle="마감 직전 빠르게 조건을 좁히는 컨트롤 패널입니다."
-          action={<Tag tone="info">{rankingCandidates.length}개 보임</Tag>}
+          action={<Tag tone="info">{filtered.length}개 보임</Tag>}
         >
           <div className="grid gap-3 md:grid-cols-2">
             <label className="filter-shell text-sm text-slate-300">
@@ -516,70 +516,96 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
 
       <div className="mt-6">
         <SectionCard
-          title="후보 랭킹 보드"
-          subtitle="상위권 후보만 숫자로 빠르게 훑는 압축 리스트입니다. 이유는 한 줄, 리스크도 한 줄만 먼저 보여줍니다."
-          action={<Tag tone="info">{rankingCandidates.length}개 표시</Tag>}
+          title="오늘 밤 실행 데스크"
+          subtitle="Top 3를 다시 늘어놓는 대신, 어디서 진입하고 무엇을 확인하고 언제 털지까지 한 번에 비교하는 구역입니다."
+          action={<Tag tone="positive">{topThree.length}개 플랜</Tag>}
         >
-          <div className="ranking-shell">
-            {rankingCandidates.map((candidate, index) => (
-              <Link key={candidate.ticker} href={`/stocks/${candidate.ticker}`} className="ranking-row">
-                <div className="ranking-grid">
-                  <div className="ranking-main">
+          <div className="execution-grid">
+            {topThree.map((candidate, index) => (
+              <Link key={candidate.ticker} href={`/stocks/${candidate.ticker}`} className="execution-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="signal-rank-chip">#{index + 1}</span>
                       <h3 className="text-2xl font-semibold tracking-[-0.05em] text-white">{candidate.ticker}</h3>
                       <GradeBadge grade={candidate.score.grade} />
-                      <Tag tone={suitabilityTone(candidate.postMarketSuitability)}>{suitabilityLabel(candidate.postMarketSuitability)}</Tag>
                     </div>
                     <p className="mt-2 text-sm text-slate-400">{candidate.companyName}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Tag tone="neutral">{candidate.sector}</Tag>
-                      {candidate.universeTags.slice(0, 2).map((item) => (
-                        <Tag key={`${candidate.ticker}-${item}`} tone="info">
-                          {item}
-                        </Tag>
-                      ))}
-                    </div>
                   </div>
-
-                  <div className="ranking-score">
-                    <p className="ranking-score-value">{candidate.score.total.toFixed(1)}</p>
-                    <p className="mt-2 text-sm text-slate-300">{formatCurrency(candidate.price)}</p>
-                    <p className={`mt-1 text-sm font-medium ${candidate.afterHoursChangePct >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                  <div className="text-right">
+                    <p className="font-mono text-3xl font-semibold text-white">{candidate.score.total.toFixed(1)}</p>
+                    <p className={`mt-2 text-sm font-medium ${candidate.afterHoursChangePct >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                       애프터 {formatPercent(candidate.afterHoursChangePct)}
                     </p>
                   </div>
+                </div>
 
-                  <div className="ranking-stats">
-                    <div className="ranking-stat">
-                      <p className="label">정규장</p>
-                      <p className={`mt-2 text-lg font-semibold ${candidate.dayChangePct >= 0 ? "text-emerald-200" : "text-rose-200"}`}>
-                        {formatPercent(candidate.dayChangePct)}
-                      </p>
-                    </div>
-                    <div className="ranking-stat">
-                      <p className="label">RVOL</p>
-                      <p className="mt-2 text-lg font-semibold text-white">{candidate.rvol20.toFixed(2)}x</p>
-                    </div>
-                    <div className="ranking-stat">
-                      <p className="label">마감 30분</p>
-                      <p className="mt-2 text-lg font-semibold text-white">{candidate.close30mVolumeRatio.toFixed(2)}x</p>
-                    </div>
-                    <div className="ranking-stat">
-                      <p className="label">실적까지</p>
-                      <p className="mt-2 text-lg font-semibold text-white">{candidate.daysToEarnings}일</p>
-                    </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div className="brief-card">
+                    <p className="label">진입</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.entryIdea}</p>
                   </div>
+                  <div className="brief-card">
+                    <p className="label">시나리오</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.scenario.primary}</p>
+                  </div>
+                  <div className="brief-card">
+                    <p className="label">청산</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.exitIdea}</p>
+                  </div>
+                </div>
 
-                  <div className="ranking-copy">
-                    <p className="label">핵심 근거</p>
-                    <p className="ranking-copy-main">{candidate.reasons[0] ?? candidate.coreSummary}</p>
-                    <p className="ranking-copy-sub">주의: {candidate.risks[0] ?? candidate.overnightRiskNote}</p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="candidate-metric">
+                    <p className="label">현재가</p>
+                    <p className="mt-2 font-mono text-xl font-semibold text-white">{formatCurrency(candidate.price)}</p>
                   </div>
+                  <div className="candidate-metric">
+                    <p className="label">정규장 / RVOL</p>
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {formatPercent(candidate.dayChangePct)} / {candidate.rvol20.toFixed(2)}x
+                    </p>
+                  </div>
+                  <div className="candidate-metric">
+                    <p className="label">지지 / 저항</p>
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {formatCurrency(candidate.supportLevel)} / {formatCurrency(candidate.resistanceLevel)}
+                    </p>
+                  </div>
+                  <div className="candidate-metric">
+                    <p className="label">실적 / 백테스트</p>
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {candidate.daysToEarnings}일 / 갭업 {candidate.backtest.gapUpRatePct.toFixed(0)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 execution-risk">
+                  <p className="label">체크 포인트</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-300">{candidate.overnightRiskNote}</p>
                 </div>
               </Link>
             ))}
           </div>
+
+          {nearMisses.length > 0 ? (
+            <div className="mt-5 rounded-[26px] border border-white/8 bg-white/4 px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="label">근접 감시</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">Top 3 바로 아래에서 대기 중인 종목입니다. 장후 체결이나 뉴스가 더 붙으면 교체 후보가 됩니다.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {nearMisses.map((candidate) => (
+                    <Link key={candidate.ticker} href={`/stocks/${candidate.ticker}`} className="checkpoint-chip">
+                      <span className="font-semibold text-white">{candidate.ticker}</span>
+                      <span className="text-slate-300">{candidate.score.total.toFixed(1)}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </SectionCard>
       </div>
     </AppShell>
