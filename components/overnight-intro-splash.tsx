@@ -9,7 +9,7 @@ export function OvernightIntroSplash() {
 
       <section className="intro-card">
         <div className="loading-chip-row">
-          <span className="loading-chip">S&P500 Overnight</span>
+          <span className="loading-chip">S&amp;P500 Overnight</span>
           <span className="loading-chip loading-chip-warm">Close-to-Open Scanner</span>
         </div>
 

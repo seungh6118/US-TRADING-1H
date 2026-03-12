@@ -10,7 +10,7 @@ export function OvernightDashboardLoadingShell() {
       <section className="loading-card">
         <div className="loading-chip-row">
           <span className="loading-chip loading-chip-warm">API 계산 중</span>
-          <span className="loading-chip">S&P500 503종목 스캔</span>
+          <span className="loading-chip">S&amp;P500 503종목 스캔</span>
         </div>
 
         <div className="mt-6">
@@ -29,7 +29,7 @@ export function OvernightDashboardLoadingShell() {
           <div className="loading-step">
             <p className="loading-step-index">01</p>
             <p className="loading-step-title">프리스캔</p>
-            <p className="loading-step-copy">S&P500 전체 1차 훑기</p>
+            <p className="loading-step-copy">S&amp;P500 전체 1차 훑기</p>
           </div>
           <div className="loading-step">
             <p className="loading-step-index">02</p>

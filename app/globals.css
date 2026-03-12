@@ -213,7 +213,7 @@ textarea {
   }
 
   .intro-screen {
-    @apply relative isolate min-h-screen overflow-hidden;
+    @apply relative isolate flex min-h-screen items-center overflow-hidden px-4 py-8 sm:px-6 sm:py-10;
     background:
       radial-gradient(circle at 15% 12%, rgba(140, 244, 212, 0.18), transparent 26%),
       radial-gradient(circle at 82% 18%, rgba(255, 184, 107, 0.16), transparent 22%),
@@ -248,14 +248,12 @@ textarea {
 
   .intro-card,
   .loading-card {
-    @apply relative z-10 mx-auto max-w-[980px] rounded-[40px] border px-6 py-10 sm:px-10 sm:py-12;
+    @apply relative z-10 mx-auto w-full max-w-[980px] rounded-[40px] border px-6 py-10 sm:px-10 sm:py-12;
     border-color: rgba(255, 255, 255, 0.08);
     background:
       radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 28%),
       linear-gradient(180deg, rgba(18, 26, 35, 0.9) 0%, rgba(12, 18, 24, 0.92) 100%);
     box-shadow: 0 24px 120px rgba(0, 0, 0, 0.32);
-    top: 50%;
-    transform: translateY(-50%);
   }
 
   .intro-title {
@@ -325,6 +323,12 @@ textarea {
 
   .loading-step-copy {
     @apply mt-2 text-sm leading-6 text-slate-300;
+  }
+
+  @media (max-height: 820px) {
+    .intro-screen {
+      @apply items-start py-6;
+    }
   }
 }
 
