@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { defaultOvernightSettings } from "@/lib/overnight-defaults";
 import { OvernightCandidate, OvernightDashboardData, OvernightSettings } from "@/lib/overnight-types";
-import { formatCompactNumber, formatCurrency, formatDateTime, formatPercent } from "@/lib/utils";
+import { formatCompactNumber, formatCurrency, formatDate, formatDateTime, formatPercent } from "@/lib/utils";
 import { AppShell, GradeBadge, SectionCard, Tag } from "@/components/overnight-ui";
 
 const STORAGE_KEY = "overnight-close-bet-settings";
@@ -69,6 +69,32 @@ function signalAlertTone(severity: "high" | "medium" | "low") {
     return "caution" as const;
   }
   return "info" as const;
+}
+
+function outcomeTone(value: "success" | "working" | "failed" | "pending") {
+  if (value === "success") {
+    return "positive" as const;
+  }
+  if (value === "working") {
+    return "caution" as const;
+  }
+  if (value === "failed") {
+    return "danger" as const;
+  }
+  return "info" as const;
+}
+
+function outcomeLabel(value: "success" | "working" | "failed" | "pending") {
+  if (value === "success") {
+    return "성공";
+  }
+  if (value === "working") {
+    return "진행중";
+  }
+  if (value === "failed") {
+    return "실패";
+  }
+  return "대기";
 }
 
 function tileToneClass(candidate: OvernightCandidate) {
@@ -606,6 +632,80 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
               </div>
             </div>
           ) : null}
+        </SectionCard>
+      </div>
+
+      <div className="mt-6">
+        <SectionCard
+          title="어제 후보 성적표"
+          subtitle="전일 종가베팅 후보가 익일 장중에 실제로 잘 뛰었는지, 지금 시점 기준으로 바로 확인하는 리플레이 보드입니다."
+          action={
+            data.previousReview ? (
+              <Tag tone="info">{formatDate(data.previousReview.sessionDate)}</Tag>
+            ) : (
+              <Tag tone="caution">데이터 대기</Tag>
+            )
+          }
+        >
+          {data.previousReview ? (
+            <div className="space-y-4">
+              <div className="brief-card">
+                <p className="label">요약</p>
+                <p className="mt-3 text-sm leading-7 text-slate-100">{data.previousReview.summary}</p>
+              </div>
+
+              <div className="review-grid">
+                {data.previousReview.candidates.map((candidate) => (
+                  <div key={candidate.ticker} className="review-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-2xl font-semibold tracking-[-0.05em] text-white">{candidate.ticker}</h3>
+                          <GradeBadge grade={candidate.grade} />
+                          <Tag tone={outcomeTone(candidate.outcome)}>{outcomeLabel(candidate.outcome)}</Tag>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-400">{candidate.companyName}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono text-2xl font-semibold text-white">{candidate.score.toFixed(1)}</p>
+                        <p className="mt-1 text-xs text-slate-400">전일 점수</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="candidate-metric">
+                        <p className="label">전일 종가</p>
+                        <p className="mt-2 font-mono text-lg font-semibold text-white">{formatCurrency(candidate.close)}</p>
+                      </div>
+                      <div className="candidate-metric">
+                        <p className="label">현재가</p>
+                        <p className="mt-2 font-mono text-lg font-semibold text-white">{formatCurrency(candidate.currentPrice)}</p>
+                      </div>
+                      <div className="candidate-metric">
+                        <p className="label">갭 / 현재</p>
+                        <p className="mt-2 text-sm font-semibold text-white">
+                          {formatPercent(candidate.gapPct)} / {formatPercent(candidate.currentMovePct)}
+                        </p>
+                      </div>
+                      <div className="candidate-metric">
+                        <p className="label">장중 최고</p>
+                        <p className="mt-2 text-sm font-semibold text-white">{formatPercent(candidate.highPct)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 review-summary">
+                      <p className="label">판정 코멘트</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-300">{candidate.summary}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[24px] border border-white/8 bg-white/4 px-4 py-4 text-sm leading-7 text-slate-300">
+              아직 비교할 전일 스냅샷이 없습니다. 장마감 직전 한 번 스캔이 저장되면 다음 날부터 자동으로 성공/실패 성적표가 쌓입니다.
+            </div>
+          )}
         </SectionCard>
       </div>
     </AppShell>

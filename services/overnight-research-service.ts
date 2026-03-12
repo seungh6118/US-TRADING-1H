@@ -29,7 +29,7 @@ import {
   YahooScreenedQuote
 } from "@/providers/live/yahoo-overnight";
 import { scoreOvernightCandidate } from "@/scoring/overnight-engine";
-import { buildStoredSnapshotBacktest, buildTradeSeriesLookback } from "@/services/overnight-backtest-service";
+import { buildPreviousSnapshotReview, buildStoredSnapshotBacktest, buildTradeSeriesLookback } from "@/services/overnight-backtest-service";
 
 type CachedDashboard = {
   expiresAt: number;
@@ -897,6 +897,7 @@ async function saveSnapshotIfNeeded(data: OvernightDashboardData) {
 
 async function buildLiveDashboardData(settings: OvernightSettings): Promise<OvernightDashboardData> {
   const generatedAt = new Date().toISOString();
+  const currentSessionDate = toIsoDateInTimezone(generatedAt, overnightRuntime.marketTimezone);
   const status: OvernightDataStatus = {
     mode: "live",
     provider: overnightRuntime.provider,
@@ -994,6 +995,7 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
   displayCandidates.sort((left, right) => right.score.total - left.score.total);
 
   const marketBrief = await buildMarketBrief(displayCandidates, generatedAt);
+  const [strategyBacktest, previousReview] = await Promise.all([buildStoredSnapshotBacktest(), buildPreviousSnapshotReview(currentSessionDate)]);
   const data: OvernightDashboardData = {
     generatedAt,
     status,
@@ -1003,7 +1005,8 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     topCandidates: displayCandidates.slice(0, 3),
     alerts: buildAlerts(displayCandidates),
     universeCount,
-    strategyBacktest: await buildStoredSnapshotBacktest()
+    strategyBacktest,
+    previousReview
   };
 
   await saveSnapshotIfNeeded(data);
@@ -1031,7 +1034,8 @@ function buildMockDashboardData(settings: OvernightSettings): OvernightDashboard
     topCandidates: candidates.slice(0, 10),
     alerts: buildAlerts(candidates),
     universeCount: mockOvernightUniverse.length,
-    strategyBacktest: null
+    strategyBacktest: null,
+    previousReview: null
   };
 }
 

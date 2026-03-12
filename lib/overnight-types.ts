@@ -233,6 +233,27 @@ export interface OvernightStrategyBacktest {
   recentResults: OvernightStrategyBacktestResult[];
 }
 
+export interface OvernightPreviousReviewCandidate {
+  ticker: string;
+  companyName: string;
+  close: number;
+  score: number;
+  grade: OvernightGrade;
+  currentPrice: number;
+  currentMovePct: number;
+  gapPct: number;
+  highPct: number;
+  outcome: "success" | "working" | "failed" | "pending";
+  summary: string;
+}
+
+export interface OvernightPreviousReview {
+  sessionDate: string;
+  recordedAt: string;
+  summary: string;
+  candidates: OvernightPreviousReviewCandidate[];
+}
+
 export interface OvernightDashboardData {
   generatedAt: string;
   status: OvernightDataStatus;
@@ -243,4 +264,5 @@ export interface OvernightDashboardData {
   alerts: OvernightAlert[];
   universeCount: number;
   strategyBacktest: OvernightStrategyBacktest | null;
+  previousReview: OvernightPreviousReview | null;
 }
