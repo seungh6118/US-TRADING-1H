@@ -21,14 +21,14 @@ export function OvernightIntroSplash() {
             종가베팅 스캐너
           </h1>
           <p className="intro-subtitle">
-            장마감 10~15분 전에 익일 갭 상승과 시초 강세 가능성이 높은 종목만 빠르게 압축하는 오버나이트 리서치 앱입니다.
+            장마감 10~15분 전에 익일 갭과 시초 강세 가능성이 높은 종목만 압축해 보여주는 오버나이트 시그널 보드입니다.
           </p>
         </div>
 
         <div className="intro-marquee mt-8">
-          <span>뉴스</span>
-          <span>애프터마켓</span>
           <span>실적</span>
+          <span>애프터마켓</span>
+          <span>뉴스</span>
           <span>RVOL</span>
           <span>VWAP</span>
           <span>리스크</span>

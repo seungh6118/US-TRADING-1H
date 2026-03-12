@@ -13,20 +13,20 @@ export function AppShell({
   right?: ReactNode;
 }) {
   return (
-    <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+    <main className="mx-auto max-w-[1520px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
       <section className="hero-panel mb-6">
         <div className="grid gap-8 px-5 py-6 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:py-8">
           <div>
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <Link href="/" className="pill">
-                Overnight Scanner
+                Signal Board
               </Link>
               <Link href="/settings" className="pill">
                 설정
               </Link>
-              <span className="pill">S&amp;P500 · 미국장 마감 10~15분 전</span>
+              <span className="pill">S&amp;P500 · 장마감 직전 스캔</span>
             </div>
-            <p className="label text-slate-300">Close-to-Open Research Board</p>
+            <p className="label text-slate-300">Overnight Edge Console</p>
             <h1 className="mt-3 max-w-4xl text-4xl leading-[0.95] text-slate-50 sm:text-5xl lg:text-[4rem]">{title}</h1>
             <p className="mt-5 max-w-3xl text-base leading-7 text-slate-200/90">{subtitle}</p>
           </div>
