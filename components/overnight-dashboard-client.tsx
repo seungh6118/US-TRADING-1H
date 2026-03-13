@@ -208,8 +208,9 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
     });
   }, [data.candidates, onlyA, postMarketOnly, search]);
 
-  const topThree = filtered.slice(0, 3);
-  const nearMisses = filtered.slice(3, 7);
+  const topThree = data.topCandidates;
+  const topTickerSet = new Set(topThree.map((candidate) => candidate.ticker));
+  const nearMisses = filtered.filter((candidate) => !topTickerSet.has(candidate.ticker)).slice(0, 4);
   const averageAfterHours =
     topThree.length > 0 ? topThree.reduce((sum, candidate) => sum + candidate.afterHoursChangePct, 0) / topThree.length : 0;
   const strategySummary = data.strategyBacktest;
@@ -272,12 +273,18 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       <section className="panel p-5 sm:p-6">
         <div className="flex flex-col gap-4 border-b border-white/6 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="label">Tonight&apos;s Top 3</p>
-            <h2 className="panel-title mt-2 text-xl sm:text-2xl">오늘 밤 들고 갈 후보 3종목</h2>
-            <p className="panel-subtitle">가장 왼쪽 큰 타일이 최우선입니다. 크기는 우선순위, 배경 강도는 오늘 장후 모멘텀과 이벤트 강도를 뜻합니다.</p>
+            <p className="label">{data.decisionState.mode === "locked-close" ? "Locked Close Picks" : "Tonight&apos;s Top 3"}</p>
+            <h2 className="panel-title mt-2 text-xl sm:text-2xl">
+              {data.decisionState.mode === "locked-close" ? "오늘 종가 확정 픽 3종목" : "오늘 밤 들고 갈 후보 3종목"}
+            </h2>
+            <p className="panel-subtitle">{data.decisionState.summary}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Tag tone="info">{countdownLabel(data.marketBrief.closeCountdownMinutes)}</Tag>
+            <Tag tone={data.decisionState.mode === "locked-close" ? "positive" : "caution"}>
+              {data.decisionState.mode === "locked-close" ? "종가 픽 고정" : "실시간 변동"}
+            </Tag>
+            {data.decisionState.recordedAt ? <Tag tone="neutral">기준 {formatDateTime(data.decisionState.recordedAt)}</Tag> : null}
             <Tag tone="caution">새로고침 {autoRefresh ? `${settings.autoRefreshSeconds}초` : "수동"}</Tag>
             <Tag tone="positive">{topThree.length}개 표시</Tag>
           </div>
@@ -632,7 +639,11 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="label">근접 감시</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">Top 3 바로 아래에서 대기 중인 종목입니다. 장후 체결이나 뉴스가 더 붙으면 교체 후보가 됩니다.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {data.decisionState.mode === "locked-close"
+                      ? "오늘 픽은 이미 고정됐고, 아래 종목은 다음 교체 후보나 애프터 추가 감시용입니다."
+                      : "Top 3 바로 아래에서 대기 중인 종목입니다. 장후 체결이나 뉴스가 더 붙으면 교체 후보가 됩니다."}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {nearMisses.map((candidate) => (

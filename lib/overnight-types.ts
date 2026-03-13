@@ -264,6 +264,13 @@ export interface OvernightPreviousReview {
   candidates: OvernightPreviousReviewCandidate[];
 }
 
+export interface OvernightDecisionState {
+  mode: "live-window" | "locked-close";
+  sessionDate: string;
+  recordedAt: string | null;
+  summary: string;
+}
+
 export interface OvernightDashboardData {
   generatedAt: string;
   status: OvernightDataStatus;
@@ -271,6 +278,7 @@ export interface OvernightDashboardData {
   settings: OvernightSettings;
   candidates: OvernightCandidate[];
   topCandidates: OvernightCandidate[];
+  decisionState: OvernightDecisionState;
   alerts: OvernightAlert[];
   universeCount: number;
   strategyBacktest: OvernightStrategyBacktest | null;

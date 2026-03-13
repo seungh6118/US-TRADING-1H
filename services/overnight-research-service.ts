@@ -1,4 +1,4 @@
-import { saveOvernightSnapshot, snapshotExists } from "@/db/overnight-snapshot-repository";
+import { listOvernightSnapshots, saveOvernightSnapshot, snapshotExists } from "@/db/overnight-snapshot-repository";
 import { defaultOvernightSettings, normalizeOvernightSettings } from "@/lib/overnight-defaults";
 import { inferSectorEtf, marketIndexSymbols, overnightFocusSymbols, overnightScreeners } from "@/lib/overnight-universe";
 import { overnightRuntime } from "@/lib/overnight-runtime";
@@ -8,6 +8,7 @@ import {
   OvernightCandidate,
   OvernightDashboardData,
   OvernightDataStatus,
+  OvernightDecisionState,
   OvernightMarketBrief,
   OvernightNewsItem,
   OvernightRawCandidate,
@@ -399,6 +400,104 @@ function buildSnapshotId(sessionDate: string, recordedAt: string) {
   const [hourText, minuteText] = formatter.format(new Date(recordedAt)).split(":");
   const minuteBucket = Math.floor(Number(minuteText) / 15) * 15;
   return `${sessionDate}-${hourText}${String(minuteBucket).padStart(2, "0")}`;
+}
+
+function getEntryWindowSnapshot(sessionDate: string) {
+  const sameSession = listOvernightSnapshots(40)
+    .filter((snapshot) => snapshot.sessionDate === sessionDate)
+    .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
+
+  return (
+    sameSession.find((snapshot) => {
+      const recordedMinute = getMarketMinuteOfDay(Math.floor(new Date(snapshot.recordedAt).getTime() / 1000));
+      return recordedMinute >= 945;
+    }) ?? null
+  );
+}
+
+function buildDecisionState(
+  generatedAt: string,
+  currentSessionDate: string,
+  lockedSnapshot: StoredOvernightSnapshot | null
+): OvernightDecisionState {
+  if (lockedSnapshot) {
+    return {
+      mode: "locked-close",
+      sessionDate: currentSessionDate,
+      recordedAt: lockedSnapshot.recordedAt,
+      summary: `오늘 종가 픽은 ${new Intl.DateTimeFormat("ko-KR", {
+        timeZone: overnightRuntime.marketTimezone,
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(new Date(lockedSnapshot.recordedAt))} ET 기준으로 고정되고, 이후에는 애프터마켓 변화만 덧붙입니다.`
+    };
+  }
+
+  return {
+    mode: "live-window",
+    sessionDate: currentSessionDate,
+    recordedAt: null,
+    summary: `아직 마감 직전 확정 픽이 잠기지 않았습니다. ${new Intl.DateTimeFormat("ko-KR", {
+      timeZone: overnightRuntime.marketTimezone,
+      hour: "numeric",
+      minute: "2-digit"
+    }).format(new Date(generatedAt))} ET 기준 실시간 후보입니다.`
+  };
+}
+
+async function buildLockedTopCandidates(
+  lockedSnapshot: StoredOvernightSnapshot | null,
+  candidateMap: Map<string, OvernightCandidate>,
+  getSectorMomentum: Awaited<ReturnType<typeof buildSectorMomentumGetter>>,
+  settings: OvernightSettings
+) {
+  if (!lockedSnapshot) {
+    return [];
+  }
+
+  const resolved: OvernightCandidate[] = [];
+
+  for (const stored of lockedSnapshot.candidates.slice(0, 3)) {
+    const existing = candidateMap.get(stored.ticker);
+    if (existing) {
+      resolved.push(existing);
+      continue;
+    }
+
+    try {
+      const raw = await buildLiveCandidate(
+        {
+          symbol: stored.ticker,
+          companyName: stored.companyName,
+          price: 0,
+          dayChangePct: 0,
+          dayHigh: 0,
+          dayLow: 0,
+          volume: 0,
+          averageVolume: 0,
+          marketCapBn: 0,
+          bid: null,
+          ask: null,
+          postMarketPrice: null,
+          postMarketChangePct: 0,
+          earningsDate: null,
+          analystRating: null,
+          trailingPe: null,
+          marketState: "REGULAR",
+          screeners: ["snapshot"]
+        },
+        getSectorMomentum
+      );
+
+      if (raw) {
+        resolved.push(scoreOvernightCandidate(raw, settings));
+      }
+    } catch {
+      // Keep the remaining locked candidates available even if one refresh fails.
+    }
+  }
+
+  return resolved;
 }
 
 function getCloseCountdownMinutes(now = new Date()) {
@@ -898,6 +997,7 @@ async function saveSnapshotIfNeeded(data: OvernightDashboardData) {
 async function buildLiveDashboardData(settings: OvernightSettings): Promise<OvernightDashboardData> {
   const generatedAt = new Date().toISOString();
   const currentSessionDate = toIsoDateInTimezone(generatedAt, overnightRuntime.marketTimezone);
+  const currentMarketMinute = getMarketMinuteOfDay(Math.floor(new Date(generatedAt).getTime() / 1000));
   const status: OvernightDataStatus = {
     mode: "live",
     provider: overnightRuntime.provider,
@@ -993,6 +1093,10 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
   }
 
   displayCandidates.sort((left, right) => right.score.total - left.score.total);
+  const candidateMap = new Map(displayCandidates.map((candidate) => [candidate.ticker, candidate]));
+  const lockedSnapshot = currentMarketMinute >= 960 ? getEntryWindowSnapshot(currentSessionDate) ?? null : null;
+  const lockedTopCandidates = await buildLockedTopCandidates(lockedSnapshot, candidateMap, getSectorMomentum, settings);
+  const topCandidates = lockedTopCandidates.length > 0 ? lockedTopCandidates : displayCandidates.slice(0, 3);
 
   const marketBrief = await buildMarketBrief(displayCandidates, generatedAt);
   const [strategyBacktest, previousReview] = await Promise.all([buildStoredSnapshotBacktest(), buildPreviousSnapshotReview(currentSessionDate)]);
@@ -1002,7 +1106,8 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     marketBrief,
     settings,
     candidates: displayCandidates,
-    topCandidates: displayCandidates.slice(0, 3),
+    topCandidates,
+    decisionState: buildDecisionState(generatedAt, currentSessionDate, lockedSnapshot),
     alerts: buildAlerts(displayCandidates),
     universeCount,
     strategyBacktest,
@@ -1031,7 +1136,13 @@ function buildMockDashboardData(settings: OvernightSettings): OvernightDashboard
     marketBrief: mockOvernightMarketBrief,
     settings,
     candidates,
-    topCandidates: candidates.slice(0, 10),
+    topCandidates: candidates.slice(0, 3),
+    decisionState: {
+      mode: "live-window",
+      sessionDate: toIsoDateInTimezone(new Date(), overnightRuntime.marketTimezone),
+      recordedAt: null,
+      summary: "현재는 샘플 모드라 확정 픽 고정이 동작하지 않습니다."
+    },
     alerts: buildAlerts(candidates),
     universeCount: mockOvernightUniverse.length,
     strategyBacktest: null,
