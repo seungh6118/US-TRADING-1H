@@ -209,6 +209,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
   }, [data.candidates, onlyA, postMarketOnly, search]);
 
   const topThree = data.topCandidates;
+  const afterHoursRadar = data.afterHoursRadar;
   const topTickerSet = new Set(topThree.map((candidate) => candidate.ticker));
   const nearMisses = filtered.filter((candidate) => !topTickerSet.has(candidate.ticker)).slice(0, 4);
   const averageAfterHours =
@@ -404,6 +405,64 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
           </div>
         )}
       </section>
+
+      {afterHoursRadar ? (
+        <div className="mt-6">
+          <SectionCard
+            title="장후 실적 급등 레이더"
+            subtitle="종가 확정 픽과는 별개입니다. 마감 후 실적/가이던스 반응으로 새로 튀는 종목을 따로 보는 이벤트 드리븐 구역입니다."
+            action={<Tag tone="caution">{afterHoursRadar.candidates.length}개 감지</Tag>}
+          >
+            <div className="brief-card">
+              <p className="label">운용 방식</p>
+              <p className="mt-3 text-sm leading-7 text-slate-100/90">{afterHoursRadar.summary}</p>
+            </div>
+
+            <div className="mt-4 execution-grid">
+              {afterHoursRadar.candidates.map((candidate, index) => (
+                <Link key={`${candidate.ticker}-afterhours`} href={`/stocks/${candidate.ticker}`} className="execution-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="signal-rank-chip">AH #{index + 1}</span>
+                        <h3 className="text-2xl font-semibold tracking-[-0.05em] text-white">{candidate.ticker}</h3>
+                        <Tag tone={suitabilityTone(candidate.postMarketSuitability)}>{suitabilityLabel(candidate.postMarketSuitability)}</Tag>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-400">{candidate.companyName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-mono text-3xl font-semibold ${candidate.afterHoursChangePct >= 0 ? "text-emerald-100" : "text-rose-100"}`}>
+                        {formatPercent(candidate.afterHoursChangePct)}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-400">애프터 반응</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <div className="brief-card">
+                      <p className="label">핵심 재료</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.reasons[0]}</p>
+                    </div>
+                    <div className="brief-card">
+                      <p className="label">권장 매수 구간</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-100">
+                        {formatCurrency(candidate.entryGuide.idealBuyLow)} - {formatCurrency(candidate.entryGuide.idealBuyHigh)}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-slate-300">
+                        추격 금지 {formatCurrency(candidate.entryGuide.chaseAbove)}
+                      </p>
+                    </div>
+                    <div className="brief-card">
+                      <p className="label">익일 체크</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.scenario.primary}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.94fr_1.06fr]">
         <SectionCard

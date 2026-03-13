@@ -271,6 +271,11 @@ export interface OvernightDecisionState {
   summary: string;
 }
 
+export interface OvernightAfterHoursRadar {
+  summary: string;
+  candidates: OvernightCandidate[];
+}
+
 export interface OvernightDashboardData {
   generatedAt: string;
   status: OvernightDataStatus;
@@ -278,6 +283,7 @@ export interface OvernightDashboardData {
   settings: OvernightSettings;
   candidates: OvernightCandidate[];
   topCandidates: OvernightCandidate[];
+  afterHoursRadar: OvernightAfterHoursRadar | null;
   decisionState: OvernightDecisionState;
   alerts: OvernightAlert[];
   universeCount: number;

@@ -3,6 +3,7 @@ import { defaultOvernightSettings, normalizeOvernightSettings } from "@/lib/over
 import { inferSectorEtf, marketIndexSymbols, overnightFocusSymbols, overnightScreeners } from "@/lib/overnight-universe";
 import { overnightRuntime } from "@/lib/overnight-runtime";
 import {
+  OvernightAfterHoursRadar,
   CatalystTag,
   OvernightAlert,
   OvernightCandidate,
@@ -145,6 +146,22 @@ function passesBaselineFilters(candidate: OvernightCandidate, settings: Overnigh
     return false;
   }
   if (!settings.allowPostMarket && candidate.postMarketSuitability === "avoid") {
+    return false;
+  }
+  return true;
+}
+
+function passesAfterHoursRadarFilters(candidate: OvernightCandidate, settings: OvernightSettings) {
+  if (candidate.price < settings.minPrice) {
+    return false;
+  }
+  if (candidate.averageVolume < settings.minAverageVolume) {
+    return false;
+  }
+  if (candidate.averageDollarVolumeM < settings.minAverageDollarVolumeM) {
+    return false;
+  }
+  if (candidate.marketCapBn < settings.minMarketCapBn) {
     return false;
   }
   return true;
@@ -961,6 +978,60 @@ function buildAlerts(candidates: OvernightCandidate[]): OvernightAlert[] {
   ];
 }
 
+function buildAfterHoursRadar(
+  scoredCandidates: OvernightCandidate[],
+  topCandidates: OvernightCandidate[],
+  decisionState: OvernightDecisionState,
+  settings: OvernightSettings
+): OvernightAfterHoursRadar | null {
+  const topTickerSet = new Set(topCandidates.map((candidate) => candidate.ticker));
+
+  const ranked = scoredCandidates
+    .filter((candidate) => passesAfterHoursRadarFilters(candidate, settings))
+    .filter((candidate) => candidate.afterHoursChangePct >= 2)
+    .filter((candidate) =>
+      candidate.news.some((item) =>
+        item.catalyst === "earnings" ||
+        item.catalyst === "guidance" ||
+        item.catalyst === "analyst" ||
+        item.catalyst === "contract"
+      )
+    )
+    .sort((left, right) => {
+      const leftEventHits = left.news.filter((item) => item.catalyst === "earnings" || item.catalyst === "guidance").length;
+      const rightEventHits = right.news.filter((item) => item.catalyst === "earnings" || item.catalyst === "guidance").length;
+      const leftScore =
+        left.afterHoursChangePct * 4 +
+        left.score.catalystMomentum * 0.7 +
+        left.score.nextDayRealizability * 0.5 +
+        leftEventHits * 12 +
+        (left.postMarketSuitability === "ideal" ? 10 : left.postMarketSuitability === "allowed" ? 4 : 0);
+      const rightScore =
+        right.afterHoursChangePct * 4 +
+        right.score.catalystMomentum * 0.7 +
+        right.score.nextDayRealizability * 0.5 +
+        rightEventHits * 12 +
+        (right.postMarketSuitability === "ideal" ? 10 : right.postMarketSuitability === "allowed" ? 4 : 0);
+      return rightScore - leftScore;
+    });
+
+  const extraCandidates = ranked.filter((candidate) => !topTickerSet.has(candidate.ticker)).slice(0, 3);
+  const fallbackCandidates = ranked.slice(0, 3);
+  const candidates = extraCandidates.length > 0 ? extraCandidates : fallbackCandidates;
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return {
+    summary:
+      decisionState.mode === "locked-close"
+        ? "오늘 종가 확정 픽과 별개로, 장후 실적·가이던스 반응이 새로 붙은 종목입니다. 이미 들고 가는 픽을 바꾸는 용도보다 장후 추격/익일 시초 관찰용 레이더로 보시면 됩니다."
+        : "마감 이후 실적·가이던스·애널리스트 재료로 장후에 급등한 종목을 따로 압축한 레이더입니다. 종가베팅 픽과는 다른 이벤트 드리븐 플레이북으로 보시면 됩니다.",
+    candidates
+  };
+}
+
 async function saveSnapshotIfNeeded(data: OvernightDashboardData) {
   if (!overnightRuntime.snapshotEnabled) {
     return;
@@ -1097,6 +1168,8 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
   const lockedSnapshot = currentMarketMinute >= 960 ? getEntryWindowSnapshot(currentSessionDate) ?? null : null;
   const lockedTopCandidates = await buildLockedTopCandidates(lockedSnapshot, candidateMap, getSectorMomentum, settings);
   const topCandidates = lockedTopCandidates.length > 0 ? lockedTopCandidates : displayCandidates.slice(0, 3);
+  const decisionState = buildDecisionState(generatedAt, currentSessionDate, lockedSnapshot);
+  const afterHoursRadar = buildAfterHoursRadar(displayCandidates, topCandidates, decisionState, settings);
 
   const marketBrief = await buildMarketBrief(displayCandidates, generatedAt);
   const [strategyBacktest, previousReview] = await Promise.all([buildStoredSnapshotBacktest(), buildPreviousSnapshotReview(currentSessionDate)]);
@@ -1107,7 +1180,8 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
     settings,
     candidates: displayCandidates,
     topCandidates,
-    decisionState: buildDecisionState(generatedAt, currentSessionDate, lockedSnapshot),
+    afterHoursRadar,
+    decisionState,
     alerts: buildAlerts(displayCandidates),
     universeCount,
     strategyBacktest,
@@ -1137,6 +1211,7 @@ function buildMockDashboardData(settings: OvernightSettings): OvernightDashboard
     settings,
     candidates,
     topCandidates: candidates.slice(0, 3),
+    afterHoursRadar: null,
     decisionState: {
       mode: "live-window",
       sessionDate: toIsoDateInTimezone(new Date(), overnightRuntime.marketTimezone),
