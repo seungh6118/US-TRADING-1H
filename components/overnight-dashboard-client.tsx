@@ -344,6 +344,16 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
                   </div>
                 </div>
 
+                <div className="mt-4 signal-note">
+                  <p className="label">권장 매수 구간</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-100">
+                    {formatCurrency(candidate.entryGuide.idealBuyLow)} - {formatCurrency(candidate.entryGuide.idealBuyHigh)}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-300">
+                    추격 금지 {formatCurrency(candidate.entryGuide.chaseAbove)} / 무효화 {formatCurrency(candidate.entryGuide.invalidation)}
+                  </p>
+                </div>
+
                 <div className={`mt-5 grid gap-3 ${index === 0 ? "md:grid-cols-2" : ""}`}>
                   <div className="signal-note">
                     <p className="label">추천 이유</p>
@@ -568,8 +578,11 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
 
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
                   <div className="brief-card">
-                    <p className="label">진입</p>
-                    <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.entryIdea}</p>
+                    <p className="label">권장 매수</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-100">
+                      {formatCurrency(candidate.entryGuide.idealBuyLow)} - {formatCurrency(candidate.entryGuide.idealBuyHigh)}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-300">{candidate.entryGuide.summary}</p>
                   </div>
                   <div className="brief-card">
                     <p className="label">시나리오</p>

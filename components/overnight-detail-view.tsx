@@ -88,6 +88,39 @@ export function OvernightDetailView({
           </div>
         </SectionCard>
 
+        <SectionCard title="AI 매수 구간" subtitle="장막판 구조와 지지, VWAP, 애프터 반응을 바탕으로 가장 효율적인 진입 구간을 계산했습니다.">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="candidate-metric">
+              <p className="label">권장 매수 구간</p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {formatCurrency(candidate.entryGuide.idealBuyLow)} - {formatCurrency(candidate.entryGuide.idealBuyHigh)}
+              </p>
+            </div>
+            <div className="candidate-metric">
+              <p className="label">추격 금지 위</p>
+              <p className="mt-2 text-sm font-semibold text-white">{formatCurrency(candidate.entryGuide.chaseAbove)}</p>
+            </div>
+            <div className="candidate-metric">
+              <p className="label">무효화 가격</p>
+              <p className="mt-2 text-sm font-semibold text-white">{formatCurrency(candidate.entryGuide.invalidation)}</p>
+            </div>
+            <div className="candidate-metric">
+              <p className="label">진입 모드</p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {candidate.entryGuide.mode === "afterhours"
+                  ? "애프터 반응형"
+                  : candidate.entryGuide.mode === "close-strength"
+                    ? "종가 강도형"
+                    : "눌림 대기형"}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 candidate-metric">
+            <p className="label">계산 코멘트</p>
+            <p className="mt-2 text-sm leading-6 text-slate-200">{candidate.entryGuide.summary}</p>
+          </div>
+        </SectionCard>
+
         <SectionCard title="추천 이유 3개" subtitle="왜 오늘 이 종목이 종가베팅 후보인지 숫자와 재료 중심으로 요약했습니다.">
           <div className="space-y-3">
             {candidate.reasons.map((reason) => (

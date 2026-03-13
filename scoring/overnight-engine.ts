@@ -2,6 +2,7 @@ import { clamp, formatCurrency, round1 } from "@/lib/utils";
 import {
   CatalystTag,
   OvernightCandidate,
+  OvernightEntryGuide,
   OvernightGrade,
   OvernightRawCandidate,
   OvernightScoreBreakdown,
@@ -52,6 +53,10 @@ function gradeFor(total: number): OvernightGrade {
 
 function signedPercent(value: number, digits = 1) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
+}
+
+function roundPrice(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function catalystLabel(tag: CatalystTag) {
@@ -133,6 +138,57 @@ function buildScenario(candidate: OvernightRawCandidate) {
     exitPlan: `${formatCurrency(candidate.resistanceLevel)} 부근 1차 청산, 시초가가 밀리면 5분 VWAP 이탈 시 빠르게 정리하는 구조가 좋습니다. 무효화 레벨은 ${formatCurrency(
       invalidation
     )}입니다.`
+  };
+}
+
+function buildEntryGuide(candidate: OvernightRawCandidate): OvernightEntryGuide {
+  const closeBuffer = candidate.close * 0.0035;
+  const vwapAnchor = candidate.vwap > 0 ? candidate.vwap : candidate.close;
+  const pullbackAnchor = Math.max(vwapAnchor, candidate.supportLevel * 1.003, candidate.close - closeBuffer);
+  const pullbackLow = roundPrice(Math.max(candidate.close * 0.992, pullbackAnchor - closeBuffer * 0.6));
+  const pullbackHigh = roundPrice(Math.min(candidate.close * 1.0015, pullbackAnchor + closeBuffer * 0.45));
+  const momentumLow = roundPrice(Math.max(candidate.close * 0.997, vwapAnchor));
+  const momentumHigh = roundPrice(Math.min(candidate.close * 1.0025, candidate.dayHigh));
+  const afterhoursLow = roundPrice(Math.max(candidate.close * 1.001, candidate.close + closeBuffer * 0.25));
+  const afterhoursHigh = roundPrice(Math.min(candidate.close * 1.006, candidate.dayHigh * 1.002));
+  const invalidation = roundPrice(Math.min(candidate.supportLevel * 0.992, candidate.close * 0.987));
+  const chaseAbove = roundPrice(Math.min(candidate.resistanceLevel * 0.992, candidate.dayHigh * 1.004));
+
+  if (candidate.afterHoursChangePct >= 3 && candidate.postMarketSuitability === "ideal") {
+    return {
+      mode: "afterhours",
+      idealBuyLow: afterhoursLow,
+      idealBuyHigh: Math.max(afterhoursLow, afterhoursHigh),
+      chaseAbove,
+      invalidation,
+      summary: `${formatCurrency(afterhoursLow)}-${formatCurrency(
+        Math.max(afterhoursLow, afterhoursHigh)
+      )} 구간만 허용하고, ${formatCurrency(chaseAbove)} 위 추격은 비효율적입니다.`
+    };
+  }
+
+  if (candidate.closeStrength30m >= 0.6 && candidate.close > candidate.vwap) {
+    return {
+      mode: "close-strength",
+      idealBuyLow: momentumLow,
+      idealBuyHigh: Math.max(momentumLow, momentumHigh),
+      chaseAbove,
+      invalidation,
+      summary: `${formatCurrency(momentumLow)}-${formatCurrency(
+        Math.max(momentumLow, momentumHigh)
+      )} 종가 강도 유지 구간이 가장 효율적이고, ${formatCurrency(chaseAbove)} 위는 추격 구간입니다.`
+    };
+  }
+
+  return {
+    mode: "pullback",
+    idealBuyLow: pullbackLow,
+    idealBuyHigh: Math.max(pullbackLow, pullbackHigh),
+    chaseAbove,
+    invalidation,
+    summary: `${formatCurrency(pullbackLow)}-${formatCurrency(
+      Math.max(pullbackLow, pullbackHigh)
+    )} 눌림 구간을 우선 보고, ${formatCurrency(invalidation)} 아래로 밀리면 시나리오는 무효입니다.`
   };
 }
 
@@ -404,6 +460,7 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
 
   const positiveNewsCount = raw.news.filter((item) => item.sentiment === "positive").length;
   const negativeNewsCount = raw.news.filter((item) => item.sentiment === "negative").length;
+  const entryGuide = buildEntryGuide(raw);
 
   return {
     ticker: raw.ticker,
@@ -436,7 +493,10 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
     risks: buildRiskList(raw, earningsRiskDays, negativeNewsCount, closeAboveVWAPPct),
     coreSummary: buildCoreSummary(raw, positiveNewsCount),
     scenario: buildScenario(raw),
-    entryIdea: `${formatCurrency(raw.close)} 부근 종가가 유지되고 장후 체결이 크게 꺾이지 않을 때만 진입하는 보수적 접근이 좋습니다.`,
+    entryGuide,
+    entryIdea: `권장 매수 구간은 ${formatCurrency(entryGuide.idealBuyLow)}-${formatCurrency(
+      entryGuide.idealBuyHigh
+    )}입니다. ${formatCurrency(entryGuide.chaseAbove)} 위 추격은 피하고 ${formatCurrency(entryGuide.invalidation)} 아래 이탈 시 무효로 봅니다.`,
     exitIdea: `익일 시초 강세가 나오면 ${formatCurrency(raw.resistanceLevel)} 부근 1차 청산, 시초 5분 VWAP 이탈 시 빠르게 정리하는 방식이 좋습니다.`,
     closeTapeNote: `종가-고가 거리 ${closeToHighPct.toFixed(1)}%, 마감 30분 강도 ${signedPercent(
       raw.closeStrength30m

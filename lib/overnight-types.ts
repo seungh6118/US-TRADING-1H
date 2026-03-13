@@ -129,6 +129,15 @@ export interface OvernightScenarioSet {
   exitPlan: string;
 }
 
+export interface OvernightEntryGuide {
+  mode: "close-strength" | "pullback" | "afterhours";
+  idealBuyLow: number;
+  idealBuyHigh: number;
+  chaseAbove: number;
+  invalidation: number;
+  summary: string;
+}
+
 export interface OvernightCandidate {
   ticker: string;
   companyName: string;
@@ -160,6 +169,7 @@ export interface OvernightCandidate {
   risks: string[];
   coreSummary: string;
   scenario: OvernightScenarioSet;
+  entryGuide: OvernightEntryGuide;
   entryIdea: string;
   exitIdea: string;
   closeTapeNote: string;
