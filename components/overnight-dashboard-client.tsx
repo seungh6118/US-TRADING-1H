@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildClientOvernightSnapshot,
+  loadClientOvernightSnapshots,
+  upsertClientOvernightSnapshot
+} from "@/lib/overnight-client-storage";
 import { defaultOvernightSettings } from "@/lib/overnight-defaults";
 import { OvernightCandidate, OvernightDashboardData, OvernightSettings } from "@/lib/overnight-types";
 import { formatCompactNumber, formatCurrency, formatDate, formatDateTime, formatPercent } from "@/lib/utils";
@@ -129,7 +134,7 @@ async function fetchScan(settings: OvernightSettings) {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ settings })
+    body: JSON.stringify({ settings, clientSnapshotHistory: loadClientOvernightSnapshots() })
   });
 
   if (!response.ok) {
@@ -173,6 +178,17 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       window.localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
+
+  useEffect(() => {
+    if (data.marketBrief.closeCountdownMinutes > 20 && data.decisionState.mode !== "locked-close") {
+      return;
+    }
+
+    const snapshot = buildClientOvernightSnapshot(data);
+    if (snapshot) {
+      upsertClientOvernightSnapshot(snapshot);
+    }
+  }, [data]);
 
   useEffect(() => {
     if (!autoRefresh) {

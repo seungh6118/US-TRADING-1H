@@ -419,17 +419,38 @@ function buildSnapshotId(sessionDate: string, recordedAt: string) {
   return `${sessionDate}-${hourText}${String(minuteBucket).padStart(2, "0")}`;
 }
 
-function getEntryWindowSnapshot(sessionDate: string) {
-  const sameSession = listOvernightSnapshots(40)
-    .filter((snapshot) => snapshot.sessionDate === sessionDate)
-    .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
+function mergeSnapshotHistory(clientSnapshotHistory?: StoredOvernightSnapshot[]) {
+  const merged = new Map<string, StoredOvernightSnapshot>();
 
-  return (
-    sameSession.find((snapshot) => {
-      const recordedMinute = getMarketMinuteOfDay(Math.floor(new Date(snapshot.recordedAt).getTime() / 1000));
-      return recordedMinute >= 945;
-    }) ?? null
-  );
+  listOvernightSnapshots(40).forEach((snapshot) => {
+    merged.set(snapshot.id, snapshot);
+  });
+
+  (clientSnapshotHistory ?? []).forEach((snapshot) => {
+    if (!snapshot?.id || !snapshot?.recordedAt || !snapshot?.sessionDate) {
+      return;
+    }
+    merged.set(snapshot.id, snapshot);
+  });
+
+  return [...merged.values()].sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
+}
+
+function getEntryWindowSnapshot(sessionDate: string, snapshots: StoredOvernightSnapshot[]) {
+  const sameSession = snapshots.filter((snapshot) => snapshot.sessionDate === sessionDate);
+  const preClose = sameSession.find((snapshot) => {
+    const recordedMinute = getMarketMinuteOfDay(Math.floor(new Date(snapshot.recordedAt).getTime() / 1000));
+    return recordedMinute >= 945 && recordedMinute <= 960;
+  });
+
+  if (preClose) {
+    return preClose;
+  }
+
+  return sameSession.find((snapshot) => {
+    const recordedMinute = getMarketMinuteOfDay(Math.floor(new Date(snapshot.recordedAt).getTime() / 1000));
+    return recordedMinute >= 945;
+  }) ?? null;
 }
 
 function buildDecisionState(
@@ -1065,10 +1086,14 @@ async function saveSnapshotIfNeeded(data: OvernightDashboardData) {
   saveOvernightSnapshot(snapshot);
 }
 
-async function buildLiveDashboardData(settings: OvernightSettings): Promise<OvernightDashboardData> {
+async function buildLiveDashboardData(
+  settings: OvernightSettings,
+  clientSnapshotHistory?: StoredOvernightSnapshot[]
+): Promise<OvernightDashboardData> {
   const generatedAt = new Date().toISOString();
   const currentSessionDate = toIsoDateInTimezone(generatedAt, overnightRuntime.marketTimezone);
   const currentMarketMinute = getMarketMinuteOfDay(Math.floor(new Date(generatedAt).getTime() / 1000));
+  const snapshotHistory = mergeSnapshotHistory(clientSnapshotHistory);
   const status: OvernightDataStatus = {
     mode: "live",
     provider: overnightRuntime.provider,
@@ -1165,14 +1190,17 @@ async function buildLiveDashboardData(settings: OvernightSettings): Promise<Over
 
   displayCandidates.sort((left, right) => right.score.total - left.score.total);
   const candidateMap = new Map(displayCandidates.map((candidate) => [candidate.ticker, candidate]));
-  const lockedSnapshot = currentMarketMinute >= 960 ? getEntryWindowSnapshot(currentSessionDate) ?? null : null;
+  const lockedSnapshot = currentMarketMinute >= 960 ? getEntryWindowSnapshot(currentSessionDate, snapshotHistory) ?? null : null;
   const lockedTopCandidates = await buildLockedTopCandidates(lockedSnapshot, candidateMap, getSectorMomentum, settings);
   const topCandidates = lockedTopCandidates.length > 0 ? lockedTopCandidates : displayCandidates.slice(0, 3);
   const decisionState = buildDecisionState(generatedAt, currentSessionDate, lockedSnapshot);
   const afterHoursRadar = buildAfterHoursRadar(displayCandidates, topCandidates, decisionState, settings);
 
   const marketBrief = await buildMarketBrief(displayCandidates, generatedAt);
-  const [strategyBacktest, previousReview] = await Promise.all([buildStoredSnapshotBacktest(), buildPreviousSnapshotReview(currentSessionDate)]);
+  const [strategyBacktest, previousReview] = await Promise.all([
+    buildStoredSnapshotBacktest(snapshotHistory),
+    buildPreviousSnapshotReview(currentSessionDate, snapshotHistory)
+  ]);
   const data: OvernightDashboardData = {
     generatedAt,
     status,
@@ -1225,16 +1253,19 @@ function buildMockDashboardData(settings: OvernightSettings): OvernightDashboard
   };
 }
 
-export async function getOvernightDashboardData(settingsInput?: Partial<OvernightSettings>): Promise<OvernightDashboardData> {
+export async function getOvernightDashboardData(
+  settingsInput?: Partial<OvernightSettings>,
+  clientSnapshotHistory?: StoredOvernightSnapshot[]
+): Promise<OvernightDashboardData> {
   const settings = normalizeOvernightSettings(settingsInput);
-  const cacheKey = getCacheKey(settings);
+  const cacheKey = `${getCacheKey(settings)}:${JSON.stringify(clientSnapshotHistory?.map((snapshot) => snapshot.id) ?? [])}`;
   const cached = dashboardCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.data;
   }
 
   const data =
-    overnightRuntime.mode === "mock" ? buildMockDashboardData(settings) : await buildLiveDashboardData(settings);
+    overnightRuntime.mode === "mock" ? buildMockDashboardData(settings) : await buildLiveDashboardData(settings, clientSnapshotHistory);
 
   dashboardCache.set(cacheKey, {
     expiresAt: Date.now() + overnightRuntime.cacheTtlMs,

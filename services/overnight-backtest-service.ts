@@ -4,6 +4,7 @@ import {
   OvernightBacktestSummary,
   OvernightPreviousReview,
   OvernightPreviousReviewCandidate,
+  StoredOvernightSnapshot,
   OvernightStrategyBacktest,
   OvernightStrategyBacktestResult
 } from "@/lib/overnight-types";
@@ -67,8 +68,16 @@ export async function buildCandidateBacktest(symbol: string): Promise<OvernightB
   return buildTradeSeriesLookback(bars);
 }
 
-export async function buildStoredSnapshotBacktest(): Promise<OvernightStrategyBacktest | null> {
-  const snapshots = listOvernightSnapshots(8);
+function resolveSnapshotHistory(snapshotHistory?: StoredOvernightSnapshot[]) {
+  if (!snapshotHistory || snapshotHistory.length === 0) {
+    return listOvernightSnapshots(16);
+  }
+
+  return [...snapshotHistory].sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
+}
+
+export async function buildStoredSnapshotBacktest(snapshotHistory?: StoredOvernightSnapshot[]): Promise<OvernightStrategyBacktest | null> {
+  const snapshots = resolveSnapshotHistory(snapshotHistory).slice(0, 8);
   if (snapshots.length === 0) {
     return null;
   }
@@ -154,8 +163,11 @@ function buildPreviousOutcome(
   return "failed";
 }
 
-export async function buildPreviousSnapshotReview(currentSessionDate: string): Promise<OvernightPreviousReview | null> {
-  const snapshots = listOvernightSnapshots(16);
+export async function buildPreviousSnapshotReview(
+  currentSessionDate: string,
+  snapshotHistory?: StoredOvernightSnapshot[]
+): Promise<OvernightPreviousReview | null> {
+  const snapshots = resolveSnapshotHistory(snapshotHistory);
   const targetSnapshot = snapshots.find((snapshot) => snapshot.sessionDate < currentSessionDate) ?? null;
   if (!targetSnapshot) {
     return null;

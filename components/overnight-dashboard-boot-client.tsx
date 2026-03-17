@@ -6,6 +6,7 @@ import { OvernightDashboardClient } from "@/components/overnight-dashboard-clien
 import { OvernightDashboardLoadingShell } from "@/components/overnight-dashboard-loading-shell";
 import { OvernightIntroSplash } from "@/components/overnight-intro-splash";
 import { AppShell, SectionCard } from "@/components/overnight-ui";
+import { loadClientOvernightSnapshots } from "@/lib/overnight-client-storage";
 
 type LoadState =
   | { status: "loading"; data: null; error: null }
@@ -26,7 +27,14 @@ export function OvernightDashboardBootClient() {
 
     async function load() {
       try {
-        const response = await fetch("/api/scan", { cache: "no-store" });
+        const response = await fetch("/api/scan", {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ clientSnapshotHistory: loadClientOvernightSnapshots() })
+        });
         const payload = (await response.json().catch(() => ({}))) as { data?: OvernightDashboardData; error?: string };
 
         if (cancelled) {
