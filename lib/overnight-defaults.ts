@@ -1,6 +1,8 @@
 import { OvernightSettings } from "@/lib/overnight-types";
+import { normalizeSyncKey } from "@/lib/overnight-sync";
 
 export const defaultOvernightSettings: OvernightSettings = {
+  syncKey: "",
   minPrice: 10,
   minAverageVolume: 1_000_000,
   minAverageDollarVolumeM: 20,
@@ -28,6 +30,7 @@ export function normalizeOvernightSettings(input?: Partial<OvernightSettings>): 
   return {
     ...defaultOvernightSettings,
     ...input,
+    syncKey: normalizeSyncKey(input.syncKey),
     weights: {
       ...defaultOvernightSettings.weights,
       ...input.weights

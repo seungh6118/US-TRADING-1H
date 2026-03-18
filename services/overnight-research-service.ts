@@ -19,6 +19,7 @@ import {
 } from "@/lib/overnight-types";
 import { average, clamp, daysUntil, round1, sum, toIsoDateInTimezone } from "@/lib/utils";
 import { mockOvernightMarketBrief, mockOvernightUniverse } from "@/providers/mock/overnight-mock";
+import { buildSyncKeySegment, normalizeSyncKey } from "@/lib/overnight-sync";
 import { fetchSp500Constituents } from "@/providers/live/sp500-constituents";
 import {
   fetchYahooChartData,
@@ -407,7 +408,7 @@ function invertScale(value: number, min: number, max: number): number {
   return 100 - scale(value, min, max);
 }
 
-function buildSnapshotId(sessionDate: string, recordedAt: string) {
+function buildSnapshotId(sessionDate: string, recordedAt: string, syncKey?: string) {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: overnightRuntime.marketTimezone,
     hour: "2-digit",
@@ -416,18 +417,22 @@ function buildSnapshotId(sessionDate: string, recordedAt: string) {
   });
   const [hourText, minuteText] = formatter.format(new Date(recordedAt)).split(":");
   const minuteBucket = Math.floor(Number(minuteText) / 15) * 15;
-  return `${sessionDate}-${hourText}${String(minuteBucket).padStart(2, "0")}`;
+  return `${buildSyncKeySegment(syncKey)}-${sessionDate}-${hourText}${String(minuteBucket).padStart(2, "0")}`;
 }
 
-function mergeSnapshotHistory(clientSnapshotHistory?: StoredOvernightSnapshot[]) {
+function mergeSnapshotHistory(syncKey: string, clientSnapshotHistory?: StoredOvernightSnapshot[]) {
   const merged = new Map<string, StoredOvernightSnapshot>();
+  const normalizedSyncKey = normalizeSyncKey(syncKey) || null;
 
-  listOvernightSnapshots(40).forEach((snapshot) => {
+  listOvernightSnapshots(40, syncKey).forEach((snapshot) => {
     merged.set(snapshot.id, snapshot);
   });
 
   (clientSnapshotHistory ?? []).forEach((snapshot) => {
     if (!snapshot?.id || !snapshot?.recordedAt || !snapshot?.sessionDate) {
+      return;
+    }
+    if ((normalizeSyncKey(snapshot.syncKey) || null) !== normalizedSyncKey) {
       return;
     }
     merged.set(snapshot.id, snapshot);
@@ -1053,7 +1058,7 @@ function buildAfterHoursRadar(
   };
 }
 
-async function saveSnapshotIfNeeded(data: OvernightDashboardData) {
+async function saveSnapshotIfNeeded(data: OvernightDashboardData, syncKey: string) {
   if (!overnightRuntime.snapshotEnabled) {
     return;
   }
@@ -1064,13 +1069,14 @@ async function saveSnapshotIfNeeded(data: OvernightDashboardData) {
   }
 
   const sessionDate = toIsoDateInTimezone(data.generatedAt, overnightRuntime.marketTimezone);
-  const snapshotId = buildSnapshotId(sessionDate, data.generatedAt);
+  const snapshotId = buildSnapshotId(sessionDate, data.generatedAt, syncKey);
   if (snapshotExists(snapshotId)) {
     return;
   }
 
   const snapshot: StoredOvernightSnapshot = {
     id: snapshotId,
+    syncKey: normalizeSyncKey(syncKey) || null,
     sessionDate,
     recordedAt: data.generatedAt,
     candidates: data.topCandidates.slice(0, 10).map((candidate) => ({
@@ -1093,7 +1099,7 @@ async function buildLiveDashboardData(
   const generatedAt = new Date().toISOString();
   const currentSessionDate = toIsoDateInTimezone(generatedAt, overnightRuntime.marketTimezone);
   const currentMarketMinute = getMarketMinuteOfDay(Math.floor(new Date(generatedAt).getTime() / 1000));
-  const snapshotHistory = mergeSnapshotHistory(clientSnapshotHistory);
+  const snapshotHistory = mergeSnapshotHistory(settings.syncKey, clientSnapshotHistory);
   const status: OvernightDataStatus = {
     mode: "live",
     provider: overnightRuntime.provider,
@@ -1216,7 +1222,7 @@ async function buildLiveDashboardData(
     previousReview
   };
 
-  await saveSnapshotIfNeeded(data);
+  await saveSnapshotIfNeeded(data, settings.syncKey);
   return data;
 }
 

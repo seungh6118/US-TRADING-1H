@@ -1,12 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { defaultOvernightSettings, normalizeOvernightSettings } from "@/lib/overnight-defaults";
 import { OvernightDashboardData } from "@/lib/overnight-types";
 import { OvernightDashboardClient } from "@/components/overnight-dashboard-client";
 import { OvernightDashboardLoadingShell } from "@/components/overnight-dashboard-loading-shell";
 import { OvernightIntroSplash } from "@/components/overnight-intro-splash";
 import { AppShell, SectionCard } from "@/components/overnight-ui";
 import { loadClientOvernightSnapshots } from "@/lib/overnight-client-storage";
+
+const SETTINGS_STORAGE_KEY = "overnight-close-bet-settings";
+
+function loadStoredSettings() {
+  if (typeof window === "undefined") {
+    return defaultOvernightSettings;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return defaultOvernightSettings;
+    }
+
+    return normalizeOvernightSettings(JSON.parse(raw));
+  } catch {
+    return defaultOvernightSettings;
+  }
+}
 
 type LoadState =
   | { status: "loading"; data: null; error: null }
@@ -27,13 +47,14 @@ export function OvernightDashboardBootClient() {
 
     async function load() {
       try {
+        const settings = loadStoredSettings();
         const response = await fetch("/api/scan", {
           method: "POST",
           cache: "no-store",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ clientSnapshotHistory: loadClientOvernightSnapshots() })
+          body: JSON.stringify({ settings, clientSnapshotHistory: loadClientOvernightSnapshots(settings.syncKey) })
         });
         const payload = (await response.json().catch(() => ({}))) as { data?: OvernightDashboardData; error?: string };
 

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { SavedWatchlistItem, WatchlistSnapshotItem } from "@/lib/types";
 import { StoredOvernightSnapshot } from "@/lib/overnight-types";
+import { normalizeSyncKey } from "@/lib/overnight-sync";
 
 type SnapshotRecord = WatchlistSnapshotItem & { universe: string };
 
@@ -33,6 +34,13 @@ function seedState(): DbState {
   };
 }
 
+function normalizeStoredSnapshot(snapshot: StoredOvernightSnapshot): StoredOvernightSnapshot {
+  return {
+    ...snapshot,
+    syncKey: normalizeSyncKey(snapshot.syncKey) || null
+  };
+}
+
 function ensureStateFile(dbPath: string): DbState {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
@@ -48,7 +56,7 @@ function ensureStateFile(dbPath: string): DbState {
     return {
       savedWatchlist: parsed.savedWatchlist ?? seedState().savedWatchlist,
       snapshots: parsed.snapshots ?? [],
-      overnightSnapshots: parsed.overnightSnapshots ?? []
+      overnightSnapshots: (parsed.overnightSnapshots ?? []).map(normalizeStoredSnapshot)
     };
   } catch {
     const state = seedState();

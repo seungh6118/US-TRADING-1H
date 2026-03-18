@@ -105,6 +105,20 @@ export function OvernightSettingsClient() {
 
         <SectionCard title="운용 옵션" subtitle="실적 일정과 포스트마켓 허용 여부를 빠르게 켜고 끌 수 있습니다.">
           <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm text-slate-300 md:col-span-2">
+              <span className="mb-1 block">Sync Key</span>
+              <input
+                type="text"
+                value={settings.syncKey}
+                onChange={(event) => setSettings((current) => ({ ...current, syncKey: event.target.value.trim().toLowerCase() }))}
+                className="filter-input"
+                placeholder="예: seungho-overnight"
+              />
+              <span className="mt-2 block text-xs leading-5 text-slate-400">
+                집/회사/모바일에서 같은 Sync Key를 넣으면 같은 종가 확정 픽과 성적표를 서버 기준으로 공유합니다.
+                무료 Render 환경이라 재배포나 서버 재시작 시 저장 이력이 지워질 수 있습니다.
+              </span>
+            </label>
             <label className="flex items-center gap-2 rounded-[18px] border border-white/8 bg-black/10 px-3 py-2.5 text-sm text-slate-300">
               <input
                 type="checkbox"

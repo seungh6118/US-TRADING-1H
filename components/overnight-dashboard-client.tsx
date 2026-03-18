@@ -134,7 +134,7 @@ async function fetchScan(settings: OvernightSettings) {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ settings, clientSnapshotHistory: loadClientOvernightSnapshots() })
+    body: JSON.stringify({ settings, clientSnapshotHistory: loadClientOvernightSnapshots(settings.syncKey) })
   });
 
   if (!response.ok) {
@@ -184,7 +184,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       return;
     }
 
-    const snapshot = buildClientOvernightSnapshot(data);
+    const snapshot = buildClientOvernightSnapshot(data, settings.syncKey);
     if (snapshot) {
       upsertClientOvernightSnapshot(snapshot);
     }
@@ -243,6 +243,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
               <Tag tone={data.status.mode === "live" ? "positive" : "caution"}>{data.status.mode === "live" ? "실시간" : "모의"}</Tag>
               <Tag tone={marketTone(data.marketBrief.marketTone)}>{marketToneLabel(data.marketBrief.marketTone)}</Tag>
               <Tag tone="info">{countdownLabel(data.marketBrief.closeCountdownMinutes)}</Tag>
+              {settings.syncKey ? <Tag tone="neutral">Sync {settings.syncKey}</Tag> : null}
               {isRefreshing ? <Tag tone="caution">재계산 중</Tag> : null}
             </div>
             <p className="mt-4 text-base leading-7 text-slate-100">{data.marketBrief.summary}</p>

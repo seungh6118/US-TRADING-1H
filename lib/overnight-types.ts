@@ -15,6 +15,7 @@ export type OvernightDataMode = "live" | "mock";
 export type OvernightMarketTone = "risk-on" | "balanced" | "risk-off";
 
 export interface OvernightSettings {
+  syncKey: string;
   minPrice: number;
   minAverageVolume: number;
   minAverageDollarVolumeM: number;
@@ -216,6 +217,7 @@ export interface StoredOvernightSnapshotCandidate {
 
 export interface StoredOvernightSnapshot {
   id: string;
+  syncKey: string | null;
   sessionDate: string;
   recordedAt: string;
   candidates: StoredOvernightSnapshotCandidate[];
