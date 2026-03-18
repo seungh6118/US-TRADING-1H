@@ -571,6 +571,19 @@ function scoreSparkSeed(quote: YahooSparkQuote, screeners: string[]) {
   const thirtyMinuteBase = thirtyMinuteSpan[0] ?? last;
   const closeStrength30m = thirtyMinuteBase > 0 ? ((last - thirtyMinuteBase) / thirtyMinuteBase) * 100 : 0;
   const closeToHighPct = quote.dayHigh > 0 ? ((quote.dayHigh - last) / quote.dayHigh) * 100 : 0;
+  const dayChangePct = quote.previousClose > 0 ? ((quote.price - quote.previousClose) / quote.previousClose) * 100 : 0;
+  const dayChangePctScore = (() => {
+    if (dayChangePct >= 2 && dayChangePct <= 8) {
+      return 100;
+    }
+    if (dayChangePct > 8 && dayChangePct <= 15) {
+      return scale(15 - dayChangePct, 0, 7) * 0.7 + 30;
+    }
+    if (dayChangePct > 0 && dayChangePct < 2) {
+      return scale(dayChangePct, 0, 2) * 0.6 + 20;
+    }
+    return scale(dayChangePct, -5, 0) * 0.3;
+  })();
   const dollarVolumeM = (quote.price * quote.regularVolume) / 1_000_000;
   const screenerBonus =
     (screeners.includes("day_gainers") ? 14 : 0) +
@@ -578,11 +591,11 @@ function scoreSparkSeed(quote: YahooSparkQuote, screeners: string[]) {
     (screeners.includes("growth_technology_stocks") ? 8 : 0);
 
   return (
-    scale(quote.price, 10, 500) * 0.05 +
-    scale(quote.price > 0 ? ((quote.price - quote.previousClose) / quote.previousClose) * 100 : 0, -3, 12) * 0.36 +
-    invertScale(closeToHighPct, 0, 8) * 0.18 +
-    scale(closeStrength30m, -1, 3) * 0.18 +
-    scale(dollarVolumeM, 25, 2_500) * 0.15 +
+    scale(quote.price, 10, 500) * 0.04 +
+    dayChangePctScore * 0.22 +
+    invertScale(closeToHighPct, 0, 8) * 0.26 +
+    scale(closeStrength30m, -0.5, 3) * 0.28 +
+    scale(dollarVolumeM, 25, 2_500) * 0.12 +
     scale(quote.regularVolume, 500_000, 80_000_000) * 0.08 +
     screenerBonus
   );
@@ -889,13 +902,14 @@ async function buildLiveCandidate(quoteSeed: YahooScreenedQuote, getSectorMoment
   );
 
   const premarketInterestScore = clamp(
-    40 +
+    38 +
       (quote.screeners.includes("day_gainers") ? 18 : 0) +
       (quote.screeners.includes("most_actives") ? 14 : 0) +
       (quote.screeners.includes("growth_technology_stocks") ? 10 : 0) +
       news.filter((item) => item.sentiment === "positive").length * 8 +
-      (afterHoursChangePct > 0 ? 8 : 0) +
-      backtest.gapUpRatePct * 0.12,
+      (afterHoursChangePct >= 3 ? 18 : afterHoursChangePct >= 1 ? 10 : afterHoursChangePct > 0 ? 5 : 0) +
+      backtest.gapUpRatePct * 0.22 +
+      (closeStrength30m >= 1.5 ? 8 : closeStrength30m >= 0.5 ? 4 : 0),
     15,
     98
   );

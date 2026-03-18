@@ -286,6 +286,13 @@ function buildRiskList(
 ) {
   const items: Array<{ weight: number; text: string }> = [];
 
+  if (raw.dayChangePct >= 10) {
+    items.push({
+      weight: 126,
+      text: `당일에 이미 ${signedPercent(raw.dayChangePct)} 급등해 익일 시초에는 차익실현 압력이 먼저 나올 수 있습니다.`
+    });
+  }
+
   if (raw.dayChangePct < 0 || closeAboveVWAPPct < 0) {
     items.push({
       weight: 120,
@@ -382,12 +389,13 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
 
   const closeToHighPct = clamp(raw.dayHigh > 0 ? ((raw.dayHigh - raw.close) / raw.dayHigh) * 100 : 0, 0, 100);
   const closeAboveVWAPPct = raw.vwap > 0 ? ((raw.close - raw.vwap) / raw.vwap) * 100 : 0;
+  const dayChangeAdjusted = raw.dayChangePct > 10 ? 10 - (raw.dayChangePct - 10) * 0.5 : raw.dayChangePct;
   const intradayNormalized =
-    scale(raw.dayChangePct, -2, 12) * 0.36 +
-    invertScale(closeToHighPct, 0, 6) * 0.2 +
+    scale(dayChangeAdjusted, -2, 10) * 0.2 +
+    invertScale(closeToHighPct, 0, 6) * 0.24 +
     scale(closeAboveVWAPPct, -0.4, 2.4) * 0.16 +
-    scale(raw.closeStrength30m, -0.8, 3.2) * 0.2 +
-    scale(raw.afterHoursChangePct, -1.2, 2.5) * 0.08;
+    scale(raw.closeStrength30m, -0.8, 3.2) * 0.3 +
+    scale(raw.afterHoursChangePct, -1.2, 4.0) * 0.1;
   const intradayStrength = weightedCategoryScore(intradayNormalized, settings.weights.intradayStrength, 24, 0.76);
 
   const flowNormalized =
@@ -402,11 +410,19 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
     (raw.universeTags.includes("day_gainers") ? 16 : 0) +
     (raw.universeTags.includes("most_actives") ? 9 : 0) +
     (raw.universeTags.includes("growth_technology_stocks") ? 11 : 0) +
-    (raw.dayChangePct >= 5 ? 7 : raw.dayChangePct >= 2 ? 4 : 0) +
+    (raw.dayChangePct >= 2 && raw.dayChangePct <= 8 ? 6 : raw.dayChangePct > 8 ? 2 : 0) +
     (raw.afterHoursChangePct >= 0.5 ? 4 : raw.afterHoursChangePct > 0 ? 2 : 0);
   const afterHoursEventBonus =
     (raw.postMarketSuitability === "ideal" ? 6 : raw.postMarketSuitability === "allowed" ? 2 : 0) +
-    (raw.afterHoursChangePct >= 8 ? 18 : raw.afterHoursChangePct >= 5 ? 12 : raw.afterHoursChangePct >= 2 ? 6 : 0) +
+    (raw.afterHoursChangePct >= 10
+      ? 24
+      : raw.afterHoursChangePct >= 6
+        ? 18
+        : raw.afterHoursChangePct >= 3
+          ? 12
+          : raw.afterHoursChangePct >= 1
+            ? 6
+            : 0) +
     ((raw.earningsSurpriseScore >= 30 || raw.guidanceScore >= 30) && raw.afterHoursChangePct > 0 ? 10 : 0);
   const catalystNormalized =
     raw.earningsSurpriseScore * 0.18 +
@@ -427,19 +443,24 @@ export function scoreOvernightCandidate(raw: OvernightRawCandidate, settings: Ov
   );
 
   const backtestSignalScore = clamp(
-    raw.backtest.gapUpRatePct * 0.8 + raw.backtest.averageMaxGainPct * 5 + raw.backtest.averageGapPct * 2 + 20,
+    raw.backtest.gapUpRatePct * 0.65 +
+      raw.backtest.targetHitRatePct * 0.35 +
+      raw.backtest.averageMaxGainPct * 4.5 +
+      raw.backtest.averageGapPct * 2.5 +
+      (raw.backtest.sampleSize >= 15 ? 8 : raw.backtest.sampleSize >= 8 ? 4 : 0) +
+      18,
     10,
     95
   );
   const nextDayNormalized =
-    scale(raw.premarketInterestScore, 45, 95) * 0.26 +
-    scale(raw.afterHoursVolumeRatio, 0.0, 0.08) * 0.16 +
-    scale(raw.afterHoursChangePct, -1, 8) * 0.16 +
-    scale(raw.afterHoursSpreadStable, 35, 95) * 0.12 +
-    scale(raw.distanceToResistancePct, 1, 9) * 0.14 +
-    scale(Math.min(earningsRiskDays, 14), 3, 14) * 0.12 +
-    backtestSignalScore * 0.1 +
-    (raw.postMarketSuitability === "ideal" && raw.afterHoursChangePct > 3 ? 10 : 0);
+    scale(raw.premarketInterestScore, 45, 95) * 0.22 +
+    scale(raw.afterHoursVolumeRatio, 0.0, 0.08) * 0.12 +
+    scale(raw.afterHoursChangePct, -1, 8) * 0.2 +
+    scale(raw.afterHoursSpreadStable, 35, 95) * 0.1 +
+    scale(raw.distanceToResistancePct, 1, 9) * 0.12 +
+    scale(Math.min(earningsRiskDays, 14), 3, 14) * 0.08 +
+    backtestSignalScore * 0.16 +
+    (raw.postMarketSuitability === "ideal" && raw.afterHoursChangePct > 3 ? 12 : 0);
   const nextDayRealizability = weightedCategoryScore(
     clamp(nextDayNormalized, 0, 100),
     settings.weights.nextDayRealizability,

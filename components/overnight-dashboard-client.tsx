@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  buildDashboardCacheKey,
   buildClientOvernightSnapshot,
   loadClientOvernightSnapshots,
+  saveCachedOvernightDashboard,
   upsertClientOvernightSnapshot
 } from "@/lib/overnight-client-storage";
 import { defaultOvernightSettings } from "@/lib/overnight-defaults";
@@ -24,6 +26,10 @@ function normalizeClientSettings(input?: Partial<OvernightSettings>): OvernightS
       ...input?.weights
     }
   };
+}
+
+function settingsSignature(settings: OvernightSettings) {
+  return buildDashboardCacheKey(settings);
 }
 
 function suitabilityTone(value: string) {
@@ -157,6 +163,12 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
   useEffect(() => {
+    setData(initialData);
+    setSettings(initialData.settings);
+    setOnlyA(initialData.settings.onlyAGrade);
+  }, [initialData]);
+
+  useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (!stored) {
       return;
@@ -166,6 +178,9 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       const parsed = normalizeClientSettings(JSON.parse(stored) as Partial<OvernightSettings>);
       setSettings(parsed);
       setOnlyA(parsed.onlyAGrade);
+      if (settingsSignature(parsed) === settingsSignature(initialData.settings)) {
+        return;
+      }
       void fetchScan(parsed)
         .then((next) => {
           setData(next);
@@ -189,6 +204,14 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       upsertClientOvernightSnapshot(snapshot);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (settingsSignature(settings) !== settingsSignature(data.settings)) {
+      return;
+    }
+
+    saveCachedOvernightDashboard(settings, data);
+  }, [data, settings]);
 
   useEffect(() => {
     if (!autoRefresh) {

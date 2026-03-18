@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { defaultOvernightSettings, normalizeOvernightSettings } from "@/lib/overnight-defaults";
-import { OvernightDashboardData } from "@/lib/overnight-types";
+import { loadCachedOvernightDashboard, loadClientOvernightSnapshots } from "@/lib/overnight-client-storage";
 import { OvernightDashboardClient } from "@/components/overnight-dashboard-client";
 import { OvernightDashboardLoadingShell } from "@/components/overnight-dashboard-loading-shell";
 import { OvernightIntroSplash } from "@/components/overnight-intro-splash";
 import { AppShell, SectionCard } from "@/components/overnight-ui";
-import { loadClientOvernightSnapshots } from "@/lib/overnight-client-storage";
+import { OvernightDashboardData } from "@/lib/overnight-types";
 
 const SETTINGS_STORAGE_KEY = "overnight-close-bet-settings";
+const DEFAULT_LOAD_ERROR = "종가베팅 스캔 데이터를 불러오지 못했습니다.";
 
 function loadStoredSettings() {
   if (typeof window === "undefined") {
@@ -46,8 +47,16 @@ export function OvernightDashboardBootClient() {
     }, 1400);
 
     async function load() {
+      let hasCachedData = false;
+
       try {
         const settings = loadStoredSettings();
+        const cachedData = loadCachedOvernightDashboard(settings);
+        if (cachedData && !cancelled) {
+          hasCachedData = true;
+          setState({ status: "ready", data: cachedData, error: null });
+        }
+
         const response = await fetch("/api/scan", {
           method: "POST",
           cache: "no-store",
@@ -63,11 +72,13 @@ export function OvernightDashboardBootClient() {
         }
 
         if (!response.ok || !payload.data) {
-          setState({
-            status: "error",
-            data: null,
-            error: payload.error ?? "종가베팅 스캔 데이터를 불러오지 못했습니다."
-          });
+          if (!hasCachedData) {
+            setState({
+              status: "error",
+              data: null,
+              error: payload.error ?? DEFAULT_LOAD_ERROR
+            });
+          }
           return;
         }
 
@@ -77,11 +88,13 @@ export function OvernightDashboardBootClient() {
           return;
         }
 
-        setState({
-          status: "error",
-          data: null,
-          error: error instanceof Error ? error.message : "종가베팅 스캔 데이터를 불러오지 못했습니다."
-        });
+        if (!hasCachedData) {
+          setState({
+            status: "error",
+            data: null,
+            error: error instanceof Error ? error.message : DEFAULT_LOAD_ERROR
+          });
+        }
       }
     }
 
@@ -103,10 +116,7 @@ export function OvernightDashboardBootClient() {
 
   if (state.status === "error") {
     return (
-      <AppShell
-        title="S&P500 종가베팅 스캐너"
-        subtitle="초기 스캔 응답을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
-      >
+      <AppShell title="S&P500 종가베팅 스캐너" subtitle="초기 스캔 응답을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.">
         <SectionCard title="로드 실패">
           <p className="text-sm leading-6 text-rose-100">{state.error}</p>
         </SectionCard>
