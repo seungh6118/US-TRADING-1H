@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { SavedWatchlistItem, WatchlistSnapshotItem } from "@/lib/types";
-import { StoredOvernightSnapshot } from "@/lib/overnight-types";
+import { StoredOvernightSnapshot, StoredOvernightTradeJournalEntry } from "@/lib/overnight-types";
 import { normalizeSyncKey } from "@/lib/overnight-sync";
 
 type SnapshotRecord = WatchlistSnapshotItem & { universe: string };
@@ -10,6 +10,7 @@ type DbState = {
   savedWatchlist: SavedWatchlistItem[];
   snapshots: SnapshotRecord[];
   overnightSnapshots: StoredOvernightSnapshot[];
+  overnightTradeJournalEntries: StoredOvernightTradeJournalEntry[];
 };
 
 declare global {
@@ -30,7 +31,8 @@ function seedState(): DbState {
   return {
     savedWatchlist: [],
     snapshots: [],
-    overnightSnapshots: []
+    overnightSnapshots: [],
+    overnightTradeJournalEntries: []
   };
 }
 
@@ -38,6 +40,13 @@ function normalizeStoredSnapshot(snapshot: StoredOvernightSnapshot): StoredOvern
   return {
     ...snapshot,
     syncKey: normalizeSyncKey(snapshot.syncKey) || null
+  };
+}
+
+function normalizeTradeJournalEntry(entry: StoredOvernightTradeJournalEntry): StoredOvernightTradeJournalEntry {
+  return {
+    ...entry,
+    syncKey: normalizeSyncKey(entry.syncKey) || null
   };
 }
 
@@ -56,7 +65,8 @@ function ensureStateFile(dbPath: string): DbState {
     return {
       savedWatchlist: parsed.savedWatchlist ?? seedState().savedWatchlist,
       snapshots: parsed.snapshots ?? [],
-      overnightSnapshots: (parsed.overnightSnapshots ?? []).map(normalizeStoredSnapshot)
+      overnightSnapshots: (parsed.overnightSnapshots ?? []).map(normalizeStoredSnapshot),
+      overnightTradeJournalEntries: (parsed.overnightTradeJournalEntries ?? []).map(normalizeTradeJournalEntry)
     };
   } catch {
     const state = seedState();

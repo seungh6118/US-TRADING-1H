@@ -33,6 +33,7 @@ import {
 } from "@/providers/live/yahoo-overnight";
 import { scoreOvernightCandidate } from "@/scoring/overnight-engine";
 import { buildPreviousSnapshotReview, buildStoredSnapshotBacktest, buildTradeSeriesLookback } from "@/services/overnight-backtest-service";
+import { buildOvernightTradeJournal } from "@/services/overnight-trade-journal-service";
 
 type CachedDashboard = {
   expiresAt: number;
@@ -1217,9 +1218,10 @@ async function buildLiveDashboardData(
   const afterHoursRadar = buildAfterHoursRadar(displayCandidates, topCandidates, decisionState, settings);
 
   const marketBrief = await buildMarketBrief(displayCandidates, generatedAt);
-  const [strategyBacktest, previousReview] = await Promise.all([
+  const [strategyBacktest, previousReview, tradeJournal] = await Promise.all([
     buildStoredSnapshotBacktest(snapshotHistory),
-    buildPreviousSnapshotReview(currentSessionDate, snapshotHistory)
+    buildPreviousSnapshotReview(currentSessionDate, snapshotHistory),
+    buildOvernightTradeJournal(currentSessionDate, settings.syncKey)
   ]);
   const data: OvernightDashboardData = {
     generatedAt,
@@ -1233,7 +1235,8 @@ async function buildLiveDashboardData(
     alerts: buildAlerts(displayCandidates),
     universeCount,
     strategyBacktest,
-    previousReview
+    previousReview,
+    tradeJournal
   };
 
   await saveSnapshotIfNeeded(data, settings.syncKey);
@@ -1269,7 +1272,19 @@ function buildMockDashboardData(settings: OvernightSettings): OvernightDashboard
     alerts: buildAlerts(candidates),
     universeCount: mockOvernightUniverse.length,
     strategyBacktest: null,
-    previousReview: null
+    previousReview: null,
+    tradeJournal: {
+      syncKey: settings.syncKey || null,
+      summary: "모의 모드에서는 실전 테스트 기록판이 비어 있습니다.",
+      activeEntries: [],
+      recentResults: [],
+      totalTracked: 0,
+      completedTrades: 0,
+      successRatePct: 0,
+      averageGapPct: 0,
+      averageHighPct: 0,
+      averageClosePct: 0
+    }
   };
 }
 

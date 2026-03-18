@@ -223,6 +223,19 @@ export interface StoredOvernightSnapshot {
   candidates: StoredOvernightSnapshotCandidate[];
 }
 
+export interface StoredOvernightTradeJournalEntry {
+  id: string;
+  syncKey: string | null;
+  sessionDate: string;
+  ticker: string;
+  companyName: string;
+  recordedAt: string;
+  entryPrice: number;
+  scoreAtEntry: number;
+  gradeAtEntry: OvernightGrade;
+  source: "close-pick" | "afterhours-radar";
+}
+
 export interface OvernightStrategyBacktestResult {
   snapshotId: string;
   sessionDate: string;
@@ -278,6 +291,38 @@ export interface OvernightAfterHoursRadar {
   candidates: OvernightCandidate[];
 }
 
+export interface OvernightTradeJournalEntry {
+  id: string;
+  sessionDate: string;
+  ticker: string;
+  companyName: string;
+  recordedAt: string;
+  entryPrice: number;
+  scoreAtEntry: number;
+  gradeAtEntry: OvernightGrade;
+  source: "close-pick" | "afterhours-radar";
+  currentPrice: number;
+  currentMovePct: number;
+  gapPct: number;
+  highPct: number;
+  closePct: number;
+  outcome: "success" | "working" | "failed" | "pending";
+  summary: string;
+}
+
+export interface OvernightTradeJournal {
+  syncKey: string | null;
+  summary: string;
+  activeEntries: OvernightTradeJournalEntry[];
+  recentResults: OvernightTradeJournalEntry[];
+  totalTracked: number;
+  completedTrades: number;
+  successRatePct: number;
+  averageGapPct: number;
+  averageHighPct: number;
+  averageClosePct: number;
+}
+
 export interface OvernightDashboardData {
   generatedAt: string;
   status: OvernightDataStatus;
@@ -291,4 +336,5 @@ export interface OvernightDashboardData {
   universeCount: number;
   strategyBacktest: OvernightStrategyBacktest | null;
   previousReview: OvernightPreviousReview | null;
+  tradeJournal: OvernightTradeJournal;
 }

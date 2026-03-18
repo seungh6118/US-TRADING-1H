@@ -10,7 +10,7 @@ import {
   upsertClientOvernightSnapshot
 } from "@/lib/overnight-client-storage";
 import { defaultOvernightSettings } from "@/lib/overnight-defaults";
-import { OvernightCandidate, OvernightDashboardData, OvernightSettings } from "@/lib/overnight-types";
+import { OvernightCandidate, OvernightDashboardData, OvernightSettings, OvernightTradeJournal } from "@/lib/overnight-types";
 import { formatCompactNumber, formatCurrency, formatDate, formatDateTime, formatPercent } from "@/lib/utils";
 import { AppShell, GradeBadge, SectionCard, Tag } from "@/components/overnight-ui";
 
@@ -95,6 +95,10 @@ function outcomeTone(value: "success" | "working" | "failed" | "pending") {
   return "info" as const;
 }
 
+function tradeSourceLabel(value: "close-pick" | "afterhours-radar") {
+  return value === "afterhours-radar" ? "장후 레이더" : "종가 픽";
+}
+
 function outcomeLabel(value: "success" | "working" | "failed" | "pending") {
   if (value === "success") {
     return "성공";
@@ -155,6 +159,7 @@ async function fetchScan(settings: OvernightSettings) {
 export function OvernightDashboardClient({ initialData }: { initialData: OvernightDashboardData }) {
   const [data, setData] = useState(initialData);
   const [settings, setSettings] = useState(initialData.settings);
+  const [tradeJournal, setTradeJournal] = useState<OvernightTradeJournal>(initialData.tradeJournal);
   const [search, setSearch] = useState("");
   const [onlyA, setOnlyA] = useState(initialData.settings.onlyAGrade);
   const [postMarketOnly, setPostMarketOnly] = useState(false);
@@ -165,6 +170,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
   useEffect(() => {
     setData(initialData);
     setSettings(initialData.settings);
+    setTradeJournal(initialData.tradeJournal);
     setOnlyA(initialData.settings.onlyAGrade);
   }, [initialData]);
 
@@ -184,6 +190,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       void fetchScan(parsed)
         .then((next) => {
           setData(next);
+          setTradeJournal(next.tradeJournal);
           setRefreshError(null);
         })
         .catch((error) => {
@@ -223,6 +230,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       void fetchScan(settings)
         .then((next) => {
           setData(next);
+          setTradeJournal(next.tradeJournal);
           setRefreshError(null);
         })
         .catch((error) => {
@@ -233,6 +241,28 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
 
     return () => window.clearInterval(interval);
   }, [autoRefresh, settings]);
+
+  async function toggleTradeJournal(candidate: OvernightCandidate, source: "close-pick" | "afterhours-radar") {
+    const response = await fetch("/api/trade-journal/toggle", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sessionDate: data.decisionState.sessionDate,
+        syncKey: settings.syncKey,
+        candidate,
+        source
+      })
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as { tradeJournal?: OvernightTradeJournal; error?: string };
+    if (!response.ok || !payload.tradeJournal) {
+      throw new Error(payload.error ?? "실전 기록을 저장하지 못했습니다.");
+    }
+
+    setTradeJournal(payload.tradeJournal);
+  }
 
   const filtered = useMemo(() => {
     return data.candidates.filter((candidate) => {
@@ -254,6 +284,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
   const averageAfterHours =
     topThree.length > 0 ? topThree.reduce((sum, candidate) => sum + candidate.afterHoursChangePct, 0) / topThree.length : 0;
   const strategySummary = data.strategyBacktest;
+  const trackedKeys = new Set(tradeJournal.activeEntries.map((entry) => `${entry.sessionDate}:${entry.ticker}`));
 
   return (
     <AppShell
@@ -497,6 +528,22 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
                       <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.scenario.primary}</p>
                     </div>
                   </div>
+
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-100"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void toggleTradeJournal(candidate, "afterhours-radar").catch((error) => {
+                          setRefreshError(error instanceof Error ? error.message : "실전 기록을 저장하지 못했습니다.");
+                        });
+                      }}
+                    >
+                      {trackedKeys.has(`${data.decisionState.sessionDate}:${candidate.ticker}`) ? "기록 취소" : "실전 기록"}
+                    </button>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -657,6 +704,134 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       </div>
 
       <div className="mt-6">
+        <SectionCard title="실전 테스트 기록판" subtitle="실제로 들어간 종목만 기록하고 익일 결과를 자동으로 채점합니다." action={<Tag tone="info">{tradeJournal.totalTracked}건 기록</Tag>}>
+          <div className="space-y-4">
+            <div className="brief-card">
+              <p className="label">요약</p>
+              <p className="mt-3 text-sm leading-7 text-slate-100">{tradeJournal.summary}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Tag tone="info">완료 {tradeJournal.completedTrades}건</Tag>
+                <Tag tone={tradeJournal.successRatePct >= 50 ? "positive" : "caution"}>성공률 {tradeJournal.successRatePct.toFixed(1)}%</Tag>
+                <Tag tone="neutral">평균 갭 {formatPercent(tradeJournal.averageGapPct)}</Tag>
+                <Tag tone="neutral">평균 고점 {formatPercent(tradeJournal.averageHighPct)}</Tag>
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="brief-card">
+                <p className="label">빠른 기록</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {topThree.map((candidate) => (
+                    <button
+                      key={`quick-close-${candidate.ticker}`}
+                      type="button"
+                      className="checkpoint-chip"
+                      onClick={() => {
+                        void toggleTradeJournal(candidate, "close-pick").catch((error) => {
+                          setRefreshError(error instanceof Error ? error.message : "실전 기록을 저장하지 못했습니다.");
+                        });
+                      }}
+                    >
+                      <span className="font-semibold text-white">{candidate.ticker}</span>
+                      <span className="text-slate-300">{trackedKeys.has(`${data.decisionState.sessionDate}:${candidate.ticker}`) ? "기록됨" : "종가 픽"}</span>
+                    </button>
+                  ))}
+                  {afterHoursRadar?.candidates.slice(0, 3).map((candidate) => (
+                    <button
+                      key={`quick-ah-${candidate.ticker}`}
+                      type="button"
+                      className="checkpoint-chip"
+                      onClick={() => {
+                        void toggleTradeJournal(candidate, "afterhours-radar").catch((error) => {
+                          setRefreshError(error instanceof Error ? error.message : "실전 기록을 저장하지 못했습니다.");
+                        });
+                      }}
+                    >
+                      <span className="font-semibold text-white">{candidate.ticker}</span>
+                      <span className="text-slate-300">{trackedKeys.has(`${data.decisionState.sessionDate}:${candidate.ticker}`) ? "기록됨" : "장후 레이더"}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="brief-card">
+                <p className="label">활성 기록</p>
+                {tradeJournal.activeEntries.length > 0 ? (
+                  <div className="mt-3 space-y-3">
+                    {tradeJournal.activeEntries.map((entry) => (
+                      <div key={entry.id} className="rounded-[18px] border border-white/8 bg-black/10 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-lg font-semibold text-white">{entry.ticker}</span>
+                            <GradeBadge grade={entry.gradeAtEntry} />
+                            <Tag tone="info">{tradeSourceLabel(entry.source)}</Tag>
+                            <Tag tone={outcomeTone(entry.outcome)}>{outcomeLabel(entry.outcome)}</Tag>
+                          </div>
+                          <span className="font-mono text-sm text-slate-200">{formatCurrency(entry.entryPrice)}</span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">{entry.summary}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-7 text-slate-300">아직 오늘 기록한 종목이 없습니다. 위 버튼으로 실제 진입한 종목만 남기면 됩니다.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="review-grid">
+              {tradeJournal.recentResults.length > 0 ? (
+                tradeJournal.recentResults.map((entry) => (
+                  <div key={entry.id} className="review-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-2xl font-semibold tracking-[-0.05em] text-white">{entry.ticker}</h3>
+                          <Tag tone={outcomeTone(entry.outcome)}>{outcomeLabel(entry.outcome)}</Tag>
+                          <Tag tone="neutral">{tradeSourceLabel(entry.source)}</Tag>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-400">{entry.companyName}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono text-2xl font-semibold text-white">{entry.scoreAtEntry.toFixed(1)}</p>
+                        <p className="mt-1 text-xs text-slate-400">기록 점수</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="candidate-metric">
+                        <p className="label">진입가</p>
+                        <p className="mt-2 font-mono text-lg font-semibold text-white">{formatCurrency(entry.entryPrice)}</p>
+                      </div>
+                      <div className="candidate-metric">
+                        <p className="label">갭 / 장중고점</p>
+                        <p className="mt-2 text-sm font-semibold text-white">{formatPercent(entry.gapPct)} / {formatPercent(entry.highPct)}</p>
+                      </div>
+                      <div className="candidate-metric">
+                        <p className="label">종가 / 현재</p>
+                        <p className="mt-2 text-sm font-semibold text-white">{formatPercent(entry.closePct)} / {formatPercent(entry.currentMovePct)}</p>
+                      </div>
+                      <div className="candidate-metric">
+                        <p className="label">세션</p>
+                        <p className="mt-2 text-sm font-semibold text-white">{formatDate(entry.sessionDate)}</p>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-sm leading-7 text-slate-300">{entry.summary}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="brief-card lg:col-span-2">
+                  <p className="label">최근 결과</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">아직 익일 결과가 확정된 실전 기록이 없습니다. 오늘 기록한 종목은 내일 자동 채점됩니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="mt-6">
         <SectionCard
           title="오늘 밤 실행 데스크"
           subtitle="Top 3를 다시 늘어놓는 대신, 어디서 진입하고 무엇을 확인하고 언제 털지까지 한 번에 비교하는 구역입니다."
@@ -698,6 +873,22 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
                     <p className="label">청산</p>
                     <p className="mt-3 text-sm leading-7 text-slate-100">{candidate.exitIdea}</p>
                   </div>
+                </div>
+
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-100"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void toggleTradeJournal(candidate, "close-pick").catch((error) => {
+                        setRefreshError(error instanceof Error ? error.message : "실전 기록을 저장하지 못했습니다.");
+                      });
+                    }}
+                  >
+                    {trackedKeys.has(`${data.decisionState.sessionDate}:${candidate.ticker}`) ? "기록 취소" : "실전 테스트에 추가"}
+                  </button>
                 </div>
 
                 <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
