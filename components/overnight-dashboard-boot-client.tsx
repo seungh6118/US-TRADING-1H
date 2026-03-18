@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { defaultOvernightSettings, normalizeOvernightSettings } from "@/lib/overnight-defaults";
-import { loadCachedOvernightDashboard, loadClientOvernightSnapshots } from "@/lib/overnight-client-storage";
+import { loadCachedOvernightDashboard, loadClientOvernightSnapshots, normalizeCachedOvernightDashboard } from "@/lib/overnight-client-storage";
 import { OvernightDashboardClient } from "@/components/overnight-dashboard-client";
 import { OvernightDashboardLoadingShell } from "@/components/overnight-dashboard-loading-shell";
 import { OvernightIntroSplash } from "@/components/overnight-intro-splash";
@@ -82,7 +82,7 @@ export function OvernightDashboardBootClient() {
           return;
         }
 
-        setState({ status: "ready", data: payload.data, error: null });
+        setState({ status: "ready", data: normalizeCachedOvernightDashboard(payload.data), error: null });
       } catch (error) {
         if (cancelled) {
           return;

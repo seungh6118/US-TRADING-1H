@@ -1,5 +1,5 @@
 import { normalizeOvernightSettings } from "@/lib/overnight-defaults";
-import { OvernightDashboardData, OvernightSettings, StoredOvernightSnapshot } from "@/lib/overnight-types";
+import { OvernightDashboardData, OvernightSettings, OvernightTradeJournal, StoredOvernightSnapshot } from "@/lib/overnight-types";
 import { normalizeSyncKey } from "@/lib/overnight-sync";
 
 export const OVERNIGHT_SNAPSHOT_STORAGE_KEY = "overnight-close-pick-history";
@@ -11,6 +11,28 @@ type StoredDashboardCache = {
   savedAt: string;
   data: OvernightDashboardData;
 };
+
+function buildEmptyTradeJournal(syncKey?: string | null): OvernightTradeJournal {
+  return {
+    syncKey: normalizeSyncKey(syncKey) || null,
+    summary: "아직 기록된 실전 테스트 종목이 없습니다.",
+    activeEntries: [],
+    recentResults: [],
+    totalTracked: 0,
+    completedTrades: 0,
+    successRatePct: 0,
+    averageGapPct: 0,
+    averageHighPct: 0,
+    averageClosePct: 0
+  };
+}
+
+export function normalizeCachedOvernightDashboard(data: OvernightDashboardData): OvernightDashboardData {
+  return {
+    ...data,
+    tradeJournal: data.tradeJournal ?? buildEmptyTradeJournal(data.settings?.syncKey)
+  };
+}
 
 function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -108,7 +130,7 @@ export function loadCachedOvernightDashboard(settings: OvernightSettings, maxAge
     return null;
   }
 
-  return match.data;
+  return normalizeCachedOvernightDashboard(match.data);
 }
 
 export function saveCachedOvernightDashboard(settings: OvernightSettings, data: OvernightDashboardData) {
@@ -116,7 +138,7 @@ export function saveCachedOvernightDashboard(settings: OvernightSettings, data: 
     key: buildDashboardCacheKey(settings),
     syncKey: normalizeSyncKey(settings.syncKey) || null,
     savedAt: new Date().toISOString(),
-    data
+    data: normalizeCachedOvernightDashboard(data)
   };
 
   const existing = loadAllDashboardCaches().filter((entry) => entry.key !== nextEntry.key);

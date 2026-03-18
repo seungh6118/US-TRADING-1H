@@ -6,6 +6,7 @@ import {
   buildDashboardCacheKey,
   buildClientOvernightSnapshot,
   loadClientOvernightSnapshots,
+  normalizeCachedOvernightDashboard,
   saveCachedOvernightDashboard,
   upsertClientOvernightSnapshot
 } from "@/lib/overnight-client-storage";
@@ -157,9 +158,10 @@ async function fetchScan(settings: OvernightSettings) {
 }
 
 export function OvernightDashboardClient({ initialData }: { initialData: OvernightDashboardData }) {
-  const [data, setData] = useState(initialData);
-  const [settings, setSettings] = useState(initialData.settings);
-  const [tradeJournal, setTradeJournal] = useState<OvernightTradeJournal>(initialData.tradeJournal);
+  const normalizedInitialData = normalizeCachedOvernightDashboard(initialData);
+  const [data, setData] = useState(normalizedInitialData);
+  const [settings, setSettings] = useState(normalizedInitialData.settings);
+  const [tradeJournal, setTradeJournal] = useState<OvernightTradeJournal>(normalizedInitialData.tradeJournal);
   const [search, setSearch] = useState("");
   const [onlyA, setOnlyA] = useState(initialData.settings.onlyAGrade);
   const [postMarketOnly, setPostMarketOnly] = useState(false);
@@ -168,10 +170,11 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
   useEffect(() => {
-    setData(initialData);
-    setSettings(initialData.settings);
-    setTradeJournal(initialData.tradeJournal);
-    setOnlyA(initialData.settings.onlyAGrade);
+    const normalized = normalizeCachedOvernightDashboard(initialData);
+    setData(normalized);
+    setSettings(normalized.settings);
+    setTradeJournal(normalized.tradeJournal);
+    setOnlyA(normalized.settings.onlyAGrade);
   }, [initialData]);
 
   useEffect(() => {
@@ -184,13 +187,14 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       const parsed = normalizeClientSettings(JSON.parse(stored) as Partial<OvernightSettings>);
       setSettings(parsed);
       setOnlyA(parsed.onlyAGrade);
-      if (settingsSignature(parsed) === settingsSignature(initialData.settings)) {
+      if (settingsSignature(parsed) === settingsSignature(normalizedInitialData.settings)) {
         return;
       }
       void fetchScan(parsed)
         .then((next) => {
-          setData(next);
-          setTradeJournal(next.tradeJournal);
+          const normalized = normalizeCachedOvernightDashboard(next);
+          setData(normalized);
+          setTradeJournal(normalized.tradeJournal);
           setRefreshError(null);
         })
         .catch((error) => {
@@ -199,7 +203,7 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
     }
-  }, []);
+  }, [normalizedInitialData.settings]);
 
   useEffect(() => {
     if (data.marketBrief.closeCountdownMinutes > 20 && data.decisionState.mode !== "locked-close") {
@@ -229,8 +233,9 @@ export function OvernightDashboardClient({ initialData }: { initialData: Overnig
       setIsRefreshing(true);
       void fetchScan(settings)
         .then((next) => {
-          setData(next);
-          setTradeJournal(next.tradeJournal);
+          const normalized = normalizeCachedOvernightDashboard(next);
+          setData(normalized);
+          setTradeJournal(normalized.tradeJournal);
           setRefreshError(null);
         })
         .catch((error) => {
