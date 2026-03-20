@@ -1213,7 +1213,7 @@ async function buildLiveDashboardData(
   const candidateMap = new Map(displayCandidates.map((candidate) => [candidate.ticker, candidate]));
   const lockedSnapshot = currentMarketMinute >= 960 ? getEntryWindowSnapshot(currentSessionDate, snapshotHistory) ?? null : null;
   const lockedTopCandidates = await buildLockedTopCandidates(lockedSnapshot, candidateMap, getSectorMomentum, settings);
-  const topCandidates = lockedTopCandidates.length > 0 ? lockedTopCandidates : displayCandidates.slice(0, 3);
+  const topCandidates = lockedSnapshot ? lockedTopCandidates : displayCandidates.slice(0, 3);
   const decisionState = buildDecisionState(generatedAt, currentSessionDate, lockedSnapshot);
   const afterHoursRadar = buildAfterHoursRadar(displayCandidates, topCandidates, decisionState, settings);
 
